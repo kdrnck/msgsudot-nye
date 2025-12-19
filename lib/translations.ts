@@ -1,0 +1,238 @@
+// Translation strings for Turkish (default) and English
+
+export type Language = 'tr' | 'en'
+
+export const translations = {
+    tr: {
+        // Landing Page
+        welcome: 'Hoş Geldiniz',
+        createAccount: 'Hesap Oluştur',
+        welcomeBack: 'Tekrar Hoş Geldiniz',
+        enterNickname: 'Takma adınızı girin',
+        setSecurePin: 'Güvenli bir PIN belirleyin',
+        hello: 'Merhaba',
+        nickname: 'Takma Adınız',
+        continue: 'Devam Et',
+        back: 'Geri',
+        join: 'Katıl',
+        login: 'Giriş',
+        important: 'ÖNEMLİ!',
+        pinLoginNote: 'Bu PIN ile giriş yapacaksınız.',
+        forgotPin: 'Unutursanız: @kdrnck',
+        connectionError: 'Bağlantı hatası. Tekrar deneyin.',
+        nameTaken: 'Bu isim alınmış. Geri dönün.',
+        registrationFailed: 'Kayıt başarısız',
+        invalidPin: 'Geçersiz PIN.',
+
+        // Home Page
+        welcomeToEvent: "2025'e Hoş Geldin!",
+        eventDescription: "MSGSU Dijital Oyun Topluluğu'nun etkinliğine katıldın.",
+        logout: 'Çıkış',
+        settings: 'Ayarlar',
+
+        // Menu Items
+        kissMarryKill: 'Öp / Öldür / Evlen',
+        whoWho: 'Kim Kimi?',
+        silentCinema: 'Sessiz Sinema',
+        beNarrator: 'Taklitçi Ol',
+        myCards: 'Öptüm/Eğlendim/Evlendim',
+        shared: 'Paylaşılan',
+        silentLeaderboard: 'Sessiz Leaderboard',
+        whoAhead: 'Kim Önde?',
+        achievements: 'Başarımlar',
+        yourBadges: 'Rozetlerin',
+        liveStats: 'Canlı İstatistikler',
+        realTimeData: 'Anlık Veri',
+
+        // Sessiz Sinema
+        createLobby: 'Lobi Oluştur',
+        joinLobby: 'Lobiye Katıl',
+        lobbyCode: 'Lobi Kodu',
+        players: 'Oyuncular',
+        waitingForPlayers: 'Oyuncular bekleniyor...',
+        startGame: 'Oyunu Başlat',
+        waitingForHost: 'Host oyunu başlatmasını bekliyor...',
+        yourWord: 'Senin Kelimen',
+        whoGuessed: 'Kim bildi?',
+        skipWord: 'Bu Kelimeyi Geç',
+        narrator: 'Anlatıcı',
+        guessNow: 'TAHMİN ET!',
+        gameOver: 'Oyun Bitti!',
+        scoreTable: 'Skor Tablosu',
+        home: 'Ana Sayfa',
+        newGame: 'Yeni Oyun',
+        round: 'Tur',
+        points: 'puan',
+        tasksPerPlayer: 'Oyuncu Başına Görev',
+        roundTime: 'Tur Süresi',
+        seconds: 'Saniye',
+        minute: 'Dakika',
+        minutes: 'Dakika',
+        unlimited: 'Sınırsız',
+        createAndPlay: 'Oluştur & Oyna',
+        joinGame: 'Oyuna Katıl',
+        lobbyNotFound: 'Lobi bulunamadı.',
+        lobbyEnded: 'Bu lobi sona ermiş.',
+        couldNotJoin: 'Katılınamadı',
+        task: 'Görev',
+        tasks: 'Görev',
+
+        // KMK Game
+        selectCategories: 'Kategori Seç',
+        pickAtLeastOne: 'En az bir karakter grubu seçin.',
+        startGameBtn: 'Oyuna Başla',
+        tapSlotToPlace: '👇 Yerleştirmek için aşağıdaki slota dokun',
+        tapCharacterFirst: '👆 Önce bir karakter seç',
+        kiss: 'Öp',
+        marry: 'Evlen',
+        kill: 'Öldür',
+        completeGame: 'Oyunu Tamamla',
+        itIsDone: 'Tamamlandı.',
+        view: 'Görüntüle',
+        download: 'İndir',
+        playAgain: 'Tekrar Oyna',
+        notEnoughCharacters: 'Bu kategorilerde yeterli karakter bulunamadı! En az 3 gerekli.',
+        noCategories: 'Kategori bulunamadı. Admin karakter eklemeli.',
+
+        // Footer
+        madeBy: 'yapımcı',
+        with: 'ile',
+        jobListing: 'İş İlanı İçin Tıkla!',
+        connectWith: 'İletişim',
+
+        // Admin
+        adminDashboard: 'Admin Paneli',
+        endEvent: 'Oyuncuları Eşleştir & Etkinliği Bitir',
+        endEventDesc: 'Eşleşmeleri göster ve etkinliği kapat',
+
+        // Matches (Eşleşmeler)
+        matches: 'Eşleşmeler',
+        yourMatches: 'Senin Eşleşmelerin',
+        sameThinking: 'Aynı düşünüyorsunuz',
+        findYourMatch: 'Eşini Bul!',
+        matchDescription: 'Aynı seçimi yapan kişilerle tanış',
+
+        // Theme
+        darkMode: 'Karanlık Mod',
+        lightMode: 'Aydınlık Mod',
+        language: 'Dil',
+    },
+    en: {
+        // Landing Page
+        welcome: 'Welcome',
+        createAccount: 'Create Account',
+        welcomeBack: 'Welcome Back',
+        enterNickname: 'Enter your nickname',
+        setSecurePin: 'Set a secure PIN',
+        hello: 'Hello',
+        nickname: 'Your Nickname',
+        continue: 'Continue',
+        back: 'Back',
+        join: 'Join',
+        login: 'Login',
+        important: 'IMPORTANT!',
+        pinLoginNote: 'You will login with this PIN.',
+        forgotPin: 'Forgot? Contact: @kdrnck',
+        connectionError: 'Connection error. Try again.',
+        nameTaken: 'This name is taken. Go back.',
+        registrationFailed: 'Registration failed',
+        invalidPin: 'Invalid PIN.',
+
+        // Home Page
+        welcomeToEvent: 'Welcome to 2025!',
+        eventDescription: "You've joined MSGSU Digital Games Club's event.",
+        logout: 'Logout',
+        settings: 'Settings',
+
+        // Menu Items
+        kissMarryKill: 'Kiss / Marry / Kill',
+        whoWho: 'Who\'s Who?',
+        silentCinema: 'Silent Cinema',
+        beNarrator: 'Be the Narrator',
+        myCards: 'Kissed/Married/Killed',
+        shared: 'Shared',
+        silentLeaderboard: 'Silent Leaderboard',
+        whoAhead: 'Who\'s Ahead?',
+        achievements: 'Achievements',
+        yourBadges: 'Your Badges',
+        liveStats: 'Live Stats',
+        realTimeData: 'Real-time Data',
+
+        // Sessiz Sinema
+        createLobby: 'Create Lobby',
+        joinLobby: 'Join Lobby',
+        lobbyCode: 'Lobby Code',
+        players: 'Players',
+        waitingForPlayers: 'Waiting for players...',
+        startGame: 'Start Game',
+        waitingForHost: 'Waiting for host to start...',
+        yourWord: 'Your Word',
+        whoGuessed: 'Who guessed it?',
+        skipWord: 'Skip This Word',
+        narrator: 'Narrator',
+        guessNow: 'GUESS NOW!',
+        gameOver: 'Game Over!',
+        scoreTable: 'Leaderboard',
+        home: 'Home',
+        newGame: 'New Game',
+        round: 'Round',
+        points: 'pts',
+        tasksPerPlayer: 'Tasks Per Player',
+        roundTime: 'Round Time',
+        seconds: 'Seconds',
+        minute: 'Minute',
+        minutes: 'Minutes',
+        unlimited: 'Unlimited',
+        createAndPlay: 'Create & Play',
+        joinGame: 'Join Game',
+        lobbyNotFound: 'Lobby not found.',
+        lobbyEnded: 'This lobby has ended.',
+        couldNotJoin: 'Could not join',
+        task: 'Task',
+        tasks: 'Tasks',
+
+        // KMK Game
+        selectCategories: 'Select Categories',
+        pickAtLeastOne: 'Pick at least one character group.',
+        startGameBtn: 'Start Game',
+        tapSlotToPlace: '👇 Tap a slot below to place',
+        tapCharacterFirst: '👆 Tap a character first',
+        kiss: 'Kiss',
+        marry: 'Marry',
+        kill: 'Kill',
+        completeGame: 'Complete Game',
+        itIsDone: 'It is Done.',
+        view: 'View',
+        download: 'Download',
+        playAgain: 'Play Again',
+        notEnoughCharacters: 'Not enough characters in these categories! Need at least 3.',
+        noCategories: 'No categories found. Admin needs to add characters.',
+
+        // Footer
+        madeBy: 'made by',
+        with: 'with',
+        jobListing: 'We\'re Hiring!',
+        connectWith: 'Connect with',
+
+        // Admin
+        adminDashboard: 'Admin Dashboard',
+        endEvent: 'Connect Players & End Event',
+        endEventDesc: 'Show matches and close the event',
+
+        // Matches
+        matches: 'Matches',
+        yourMatches: 'Your Matches',
+        sameThinking: 'You think alike',
+        findYourMatch: 'Find Your Match!',
+        matchDescription: 'Meet people who made the same choices',
+
+        // Theme
+        darkMode: 'Dark Mode',
+        lightMode: 'Light Mode',
+        language: 'Language',
+    }
+}
+
+export function t(key: keyof typeof translations.tr, lang: Language = 'tr'): string {
+    return translations[lang][key] || translations.tr[key] || key
+}
