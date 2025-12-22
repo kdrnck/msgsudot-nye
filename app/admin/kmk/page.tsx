@@ -10,11 +10,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { ArrowLeft, Loader2, Plus, Trash2, Upload } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export default function AdminKMKPage() {
     const router = useRouter()
     const [loading, setLoading] = useState(true)
     const [characters, setCharacters] = useState<any[]>([])
+    const [categories, setCategories] = useState<string[]>([])
 
     // Add New State
     const [newName, setNewName] = useState("")
@@ -35,7 +37,11 @@ export default function AdminKMKPage() {
             .from('kmk_characters')
             .select('*')
             .order('created_at', { ascending: false })
-        if (data) setCharacters(data)
+        if (data) {
+            setCharacters(data)
+            const uniqueCategories = Array.from(new Set((data || []).map((c: any) => c.category).filter(Boolean)))
+            setCategories(uniqueCategories)
+        }
         setLoading(false)
     }
 
@@ -70,7 +76,10 @@ export default function AdminKMKPage() {
         if (dbError) {
             alert("DB Insert failed: " + dbError.message)
         } else if (data) {
-            setCharacters([data, ...characters])
+            const updatedCharacters = [data, ...characters]
+            setCharacters(updatedCharacters)
+            const uniqueCategories = Array.from(new Set(updatedCharacters.map((c: any) => c.category).filter(Boolean)))
+            setCategories(uniqueCategories)
             setNewName("")
             setFile(null)
             // keep category for convenience
@@ -107,9 +116,33 @@ export default function AdminKMKPage() {
                                 <Label>Name</Label>
                                 <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Brad Pitt" />
                             </div>
-                            <div className="space-y-2">
-                                <Label>Category</Label>
-                                <Input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="e.g. Actors" />
+                            <div className="space-y-3">
+                                <div className="space-y-2">
+                                    <Label>Category</Label>
+                                    <Input value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="e.g. Actors" />
+                                </div>
+                                {categories.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-xs text-muted-foreground">Or pick an existing category:</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {categories.map(cat => (
+                                                <button
+                                                    type="button"
+                                                    key={cat}
+                                                    onClick={() => setNewCategory(cat)}
+                                                    className={cn(
+                                                        "px-3 py-1 rounded-full border text-sm transition-colors",
+                                                        newCategory === cat
+                                                            ? "bg-primary text-primary-foreground border-primary"
+                                                            : "bg-muted hover:bg-muted/80 border-border"
+                                                    )}
+                                                >
+                                                    {cat}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div className="space-y-2">
                                 <Label>Image</Label>

@@ -93,6 +93,7 @@ export const translations = {
         playAgain: 'Tekrar Oyna',
         notEnoughCharacters: 'Bu kategorilerde yeterli karakter bulunamadı! En az 3 gerekli.',
         noCategories: 'Kategori bulunamadı. Admin karakter eklemeli.',
+        kmkGenerateError: 'Kart oluşturulurken hata oluştu. Lütfen tekrar deneyin.',
 
         // Footer
         madeBy: 'yapımcı',
@@ -207,6 +208,7 @@ export const translations = {
         playAgain: 'Play Again',
         notEnoughCharacters: 'Not enough characters in these categories! Need at least 3.',
         noCategories: 'No categories found. Admin needs to add characters.',
+        kmkGenerateError: 'Error generating card. Please try again.',
 
         // Footer
         madeBy: 'made by',

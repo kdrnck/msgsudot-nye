@@ -8,8 +8,9 @@ import { supabase } from "@/lib/supabase"
 import { Footer } from "@/components/layout/Footer"
 import { CharacterCard } from "@/components/kmk/CharacterCard"
 import { Button } from "@/components/ui/button"
-import { Loader2, RefreshCw, Heart, Skull, Gem, Shuffle, ArrowRight, Download, Eye, Home } from "lucide-react"
+import { Loader2, RefreshCw, Heart, Skull, Gem, ArrowRight, Download, Eye, Home } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/components/LanguageContext"
 // import * as htmlToImage from 'html-to-image' // Will import dynamically to avoid SSR issues if any, or just import top level.
 // Dynamic import for client side libraries is safer for canvas.
 import { toPng } from 'html-to-image'
@@ -26,6 +27,7 @@ type GameStage = 'category-select' | 'drawing' | 'playing' | 'result'
 export default function KMKGamePage() {
     const router = useRouter()
     const [user, setUser] = useState<UserSession | null>(null)
+    const { t, language } = useLanguage()
 
     // State
     const [stage, setStage] = useState<GameStage>('category-select')
@@ -88,7 +90,7 @@ export default function KMKGamePage() {
 
         if (error || !data || data.length < 3) {
             // Handle not enough characters
-            alert("Not enough characters found in these categories! Need at least 3.")
+            alert(t('notEnoughCharacters'))
             setLoading(false)
             return
         }
@@ -169,7 +171,7 @@ export default function KMKGamePage() {
             // 2. Upload to Supabase Storage
             const blob = await (await fetch(dataUrl)).blob()
             const filename = `${user.nickname}_${Date.now()}.png`
-            const { data: uploadData, error: uploadError } = await supabase.storage
+            const { error: uploadError } = await supabase.storage
                 .from('stories')
                 .upload(filename, blob)
 
@@ -180,9 +182,9 @@ export default function KMKGamePage() {
                 .from('kmk_results')
                 .insert({
                     player_id: user.id,
-                    kiss_char_id: slots.kiss!.id,
-                    marry_char_id: slots.marry!.id,
-                    kill_char_id: slots.kill!.id,
+                    kiss_character_id: slots.kiss!.id,
+                    marry_character_id: slots.marry!.id,
+                    kill_character_id: slots.kill!.id,
                     story_image_path: filename,
                     categories_selected: selectedCategories
                 })
@@ -193,7 +195,7 @@ export default function KMKGamePage() {
 
         } catch (e) {
             console.error(e)
-            alert("Error generating card. Please try again.")
+            alert(t('kmkGenerateError'))
         } finally {
             setGenerating(false)
         }
@@ -215,7 +217,7 @@ export default function KMKGamePage() {
                 <Button variant="ghost" size="icon" onClick={() => router.push('/home')}>
                     <Home className="w-5 h-5" />
                 </Button>
-                <h1 className="text-lg font-bold">Kiss / Marry / Kill</h1>
+                <h1 className="text-lg font-bold">{t('kissMarryKill')}</h1>
                 <div className="w-9" />
             </div>
 
@@ -228,8 +230,8 @@ export default function KMKGamePage() {
             {!loading && stage === 'category-select' && (
                 <div className="flex-1 w-full max-w-sm flex flex-col gap-4">
                     <div className="text-center mb-4">
-                        <h2 className="text-2xl font-bold mb-2">Select Categories</h2>
-                        <p className="text-muted-foreground text-sm">Pick at least one grouping of characters.</p>
+                        <h2 className="text-2xl font-bold mb-2">{t('selectCategories')}</h2>
+                        <p className="text-muted-foreground text-sm">{t('pickAtLeastOne')}</p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -249,7 +251,7 @@ export default function KMKGamePage() {
                         ))}
                         {categories.length === 0 && (
                             <p className="col-span-2 text-center text-muted-foreground py-8">
-                                No categories found. Admin needs to add characters.
+                                {t('noCategories')}
                             </p>
                         )}
                     </div>
@@ -260,7 +262,7 @@ export default function KMKGamePage() {
                         onClick={handleStartGame}
                         disabled={selectedCategories.length === 0}
                     >
-                        Start Game <ArrowRight className="w-4 h-4 ml-2" />
+                        {t('startGameBtn')} <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
                 </div>
             )}
@@ -284,7 +286,7 @@ export default function KMKGamePage() {
                     </div>
 
                     <div className="flex items-center justify-center text-sm text-muted-foreground animate-pulse">
-                        {selectedCharId ? "👇 Tap a slot below to place" : "👆 Tap a character first"}
+                        {selectedCharId ? t('tapSlotToPlace') : t('tapCharacterFirst')}
                     </div>
 
                     {/* Slots */}
@@ -300,7 +302,7 @@ export default function KMKGamePage() {
                                     <Heart className="text-pink-400 w-8 h-8 opacity-50" />
                                 )}
                                 <div className="absolute bottom-0 inset-x-0 bg-pink-500 text-white text-[10px] font-bold text-center py-1 uppercase">
-                                    Kiss
+                                    {t('kiss')}
                                 </div>
                             </div>
                         </div>
@@ -316,7 +318,7 @@ export default function KMKGamePage() {
                                     <Gem className="text-purple-400 w-8 h-8 opacity-50" />
                                 )}
                                 <div className="absolute bottom-0 inset-x-0 bg-purple-500 text-white text-[10px] font-bold text-center py-1 uppercase">
-                                    Marry
+                                    {t('marry')}
                                 </div>
                             </div>
                         </div>
@@ -332,7 +334,7 @@ export default function KMKGamePage() {
                                     <Skull className="text-slate-600 w-8 h-8 opacity-50" />
                                 )}
                                 <div className="absolute bottom-0 inset-x-0 bg-slate-800 text-white text-[10px] font-bold text-center py-1 uppercase">
-                                    Kill
+                                    {t('kill')}
                                 </div>
                             </div>
                         </div>
@@ -344,7 +346,7 @@ export default function KMKGamePage() {
                         disabled={!isComplete || generating}
                         onClick={generateCard}
                     >
-                        {generating ? <Loader2 className="animate-spin" /> : "Complete Game"}
+                        {generating ? <Loader2 className="animate-spin" /> : t('completeGame')}
                     </Button>
                 </div>
             )}
@@ -353,23 +355,23 @@ export default function KMKGamePage() {
             {!loading && stage === 'result' && resultImage && (
                 <div className="flex-1 w-full max-w-sm flex flex-col items-center gap-6 animate-in slide-in-from-bottom">
                     <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-purple-600">
-                        It is Done.
+                        {t('itIsDone')}
                     </h2>
 
                     <img src={resultImage} alt="Result Card" className="w-2/3 shadow-2xl rounded-xl" />
 
                     <div className="flex gap-4 w-full">
                         <Button className="flex-1" variant="outline" onClick={() => window.open(resultImage, '_blank')} >
-                            <Eye className="w-4 h-4 mr-2" /> View
+                            <Eye className="w-4 h-4 mr-2" /> {t('view')}
                         </Button>
                         <Button className="flex-1" onClick={downloadImage}>
-                            <Download className="w-4 h-4 mr-2" /> Download
+                            <Download className="w-4 h-4 mr-2" /> {t('download')}
                         </Button>
                     </div>
 
                     <div className="flex gap-4 w-full">
                         <Button variant="ghost" className="flex-1" onClick={() => setStage('category-select')}>
-                            <RefreshCw className="w-4 h-4 mr-2" /> Play Again
+                            <RefreshCw className="w-4 h-4 mr-2" /> {t('playAgain')}
                         </Button>
                     </div>
                 </div>
@@ -408,7 +410,7 @@ export default function KMKGamePage() {
                                     />
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-pink-500 text-5xl font-black uppercase mb-2">Kiss</span>
+                                    <span className="text-pink-500 text-5xl font-black uppercase mb-2">{t('kiss')}</span>
                                     <span className="text-6xl font-serif text-gray-900 leading-none">{slots.kiss?.name}</span>
                                 </div>
                             </div>
@@ -422,7 +424,7 @@ export default function KMKGamePage() {
                                     />
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-purple-600 text-5xl font-black uppercase mb-2">Marry</span>
+                                    <span className="text-purple-600 text-5xl font-black uppercase mb-2">{t('marry')}</span>
                                     <span className="text-6xl font-serif text-gray-900 leading-none">{slots.marry?.name}</span>
                                 </div>
                             </div>
@@ -437,7 +439,7 @@ export default function KMKGamePage() {
                                     <div className="absolute inset-0 bg-red-500 mix-blend-multiply opacity-30"></div>
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-slate-800 text-5xl font-black uppercase mb-2">Kill</span>
+                                    <span className="text-slate-800 text-5xl font-black uppercase mb-2">{t('kill')}</span>
                                     <span className="text-6xl font-serif text-gray-900 leading-none">{slots.kill?.name}</span>
                                 </div>
                             </div>
@@ -446,7 +448,7 @@ export default function KMKGamePage() {
                         {/* Footer */}
                         <div className="mb-24 text-center z-10">
                             <p className="text-3xl font-bold text-gray-400">@{user?.nickname}</p>
-                            <p className="text-2xl text-gray-300 mt-2">{new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                            <p className="text-2xl text-gray-300 mt-2">{new Date().toLocaleDateString(language === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
 
                             <div className="mt-12 pt-8 border-t-2 border-gray-100 w-full flex justify-center gap-4 text-2xl text-purple-400">
                                 <span>MSGSU - DOT</span>
