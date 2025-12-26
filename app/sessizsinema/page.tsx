@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, User, Mic, Play, CheckCircle, RotateCw, SkipForward, Home, Plus, ArrowRight, Users, Globe, Clock, LogOut, History, X, Trophy, Calendar } from "lucide-react"
+import { Loader2, User, Mic, Play, CheckCircle, RotateCw, SkipForward, Home, Plus, ArrowRight, Users, Globe, Clock, LogOut, History, X, Trophy, Calendar, Tag, Check } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -61,6 +61,9 @@ function CharadesGamePage() {
     const [timeLeft, setTimeLeft] = useState<number>(0)
     const [showConfirmDialog, setShowConfirmDialog] = useState<'disband' | 'leave' | null>(null)
     const [actionLoading, setActionLoading] = useState(false)
+    const [calculatingScores, setCalculatingScores] = useState(false)
+    const [finalScores, setFinalScores] = useState<LobbyPlayer[]>([])
+    const [scoresReady, setScoresReady] = useState(false)
 
     const audioRef = useRef<HTMLAudioElement | null>(null)
     const audioPlayedRef = useRef(false)
@@ -142,6 +145,71 @@ function CharadesGamePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [code])
 
+    // Handle game finish - fetch final scores with proper state management
+    useEffect(() => {
+        if (!lobby || !lobby.id) return
+        
+        // Reset scores when game is not finished
+        if (lobby.status !== 'finished') {
+            if (scoresReady) {
+                console.log('Game not finished, resetting score states')
+                setScoresReady(false)
+                setFinalScores([])
+                setCalculatingScores(false)
+            }
+            return
+        }
+        
+        // Game is finished - fetch final scores
+        if (!scoresReady) {
+            console.log('Game finished, initiating score fetch...')
+            setCalculatingScores(true)
+            
+            const fetchFinalScores = async () => {
+                // Wait for any pending database writes to complete
+                await new Promise(resolve => setTimeout(resolve, 2500))
+                
+                console.log('Fetching final scores from database for lobby:', lobby.id)
+                
+                // Fetch fresh scores directly from database
+                const { data, error } = await supabase
+                    .from('charades_lobby_players')
+                    .select('id, lobby_id, player_id, score, player:players(id, nickname)')
+                    .eq('lobby_id', lobby.id)
+                
+                if (!error && data) {
+                    console.log('Final scores fetched successfully:', data.map(d => ({ player_id: d.player_id, score: d.score })))
+                    
+                    const scores = data.map(d => ({ 
+                        id: d.id, 
+                        lobby_id: d.lobby_id, 
+                        player_id: d.player_id, 
+                        score: d.score, 
+                        is_active: true 
+                    }))
+                    
+                    // Update playersMap
+                    const pMap: Record<string, Player> = {}
+                    data.forEach((d: any) => { if (d.player) pMap[d.player.id] = d.player })
+                    setPlayersMap(prev => ({ ...prev, ...pMap }))
+                    
+                    setFinalScores(scores)
+                    setScoresReady(true)
+                    setCalculatingScores(false)
+                    console.log('Scoreboard ready to display')
+                } else {
+                    console.error('Error fetching final scores:', error)
+                    // Fallback to current lobbyPlayers if fetch fails
+                    setFinalScores(lobbyPlayers)
+                    setScoresReady(true)
+                    setCalculatingScores(false)
+                }
+            }
+            
+            fetchFinalScores()
+        }
+    }, [lobby?.status, lobby?.id, scoresReady, lobbyPlayers])
+
     const initGame = async (lobbyCode: string, session: UserSession) => {
         const { data: initLobby, error } = await supabase.from('charades_lobbies').select('*').eq('code', lobbyCode).single()
         if (error || !initLobby) {
@@ -155,7 +223,7 @@ function CharadesGamePage() {
         const channel = supabase.channel(`lobby_${initLobby.id}`, { config: { broadcast: { self: true }, presence: { key: session.id } } })
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'charades_lobbies', filter: `id=eq.${initLobby.id}` }, (payload) => { 
                 console.log('Lobby UPDATE received:', payload.new)
-                setLobby(payload.new as Lobby) 
+                setLobby(payload.new as Lobby)
             })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'charades_lobby_players', filter: `lobby_id=eq.${initLobby.id}` }, () => { fetchPlayers(initLobby.id) })
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'charades_lobbies', filter: `id=eq.${initLobby.id}` }, () => {
@@ -259,7 +327,16 @@ function CharadesGamePage() {
         if (!lobby || !user) return
         setActionLoading(true)
         try {
-            const { data: tasks } = await supabase.from('charades_tasks').select('id, content')
+            // Filter tasks by selected categories
+            const selectedCats = lobby.selected_categories || ['Genel']
+            let query = supabase.from('charades_tasks').select('id, content, category')
+            
+            // If not selecting all categories, filter by the selected ones
+            if (!selectedCats.includes('Tümü')) {
+                query = query.in('category', selectedCats)
+            }
+            
+            const { data: tasks } = await query
             const totalTasksNeeded = lobby.tasks_per_player * lobbyPlayers.length
             if (!tasks || tasks.length < totalTasksNeeded) { showToast(gt('notEnoughTasks', lang), 'error'); setActionLoading(false); return }
             const playerOrder = lobbyPlayers.map(p => p.player_id).sort(() => Math.random() - 0.5)
@@ -299,11 +376,16 @@ function CharadesGamePage() {
         if (transitioningRef.current) return
         transitioningRef.current = true
         
-        // Update score
+        // Update score atomically to prevent race conditions
         const guesserLobbyPlayer = lobbyPlayers.find(p => p.player_id === guesserId)
         if (guesserLobbyPlayer) {
-            await supabase.from('charades_lobby_players').update({ score: guesserLobbyPlayer.score + 1 }).eq('id', guesserLobbyPlayer.id)
-            fetchPlayers(lobby.id) // Refresh scores
+            // Use atomic increment RPC to prevent stale state overwrites
+            const { error } = await supabase.rpc('increment_charades_score', { p_lobby_player_id: guesserLobbyPlayer.id })
+            if (error) {
+                console.error('Error incrementing score:', error)
+                // Fallback: still try to transition to reveal
+            }
+            // Real-time subscription will automatically update scores for all clients
         }
         
         const newState: GameState = {
@@ -335,10 +417,32 @@ function CharadesGamePage() {
             const { data: updatedLobby } = await supabase.from('charades_lobbies').update({ status: 'finished', current_game_state: finishedState }).eq('id', lobby.id).select().single()
             if (updatedLobby) setLobby(updatedLobby as Lobby)
         } else if (nextInfo.nextTurn) {
-            const newState: GameState = { ...state, phase: 'playing', turn: nextInfo.nextTurn, timer: { startedAtMs: Date.now(), durationSec: state.roundDurationSec, pausedAtMs: null }, reveal: undefined, version: state.version + 1, lastActionAt: Date.now(), lastActionBy: user.id }
+            // Go to waiting_for_start instead of playing - narrator must manually start
+            const newState: GameState = { ...state, phase: 'waiting_for_start', turn: nextInfo.nextTurn, timer: { startedAtMs: null, durationSec: state.roundDurationSec, pausedAtMs: null }, reveal: undefined, version: state.version + 1, lastActionAt: Date.now(), lastActionBy: user.id }
             const { data: updatedLobby } = await supabase.from('charades_lobbies').update({ current_game_state: newState }).eq('id', lobby.id).select().single()
             if (updatedLobby) setLobby(updatedLobby as Lobby)
         }
+    }
+
+    // Handler for narrator to manually start their turn
+    const handleDeliverTaskAndStart = async () => {
+        if (!lobby || !user) return
+        const state = lobby.current_game_state
+        if (!state || state.phase !== 'waiting_for_start') return
+        if (user.id !== state.turn.narratorId) return
+        if (transitioningRef.current) return
+        transitioningRef.current = true
+        
+        const newState: GameState = { 
+            ...state, 
+            phase: 'playing', 
+            timer: { startedAtMs: Date.now(), durationSec: state.roundDurationSec, pausedAtMs: null }, 
+            version: state.version + 1, 
+            lastActionAt: Date.now(), 
+            lastActionBy: user.id 
+        }
+        const { data: updatedLobby } = await supabase.from('charades_lobbies').update({ current_game_state: newState }).eq('id', lobby.id).select().single()
+        if (updatedLobby) setLobby(updatedLobby as Lobby)
     }
 
     const handleDisbandLobby = async () => {
@@ -483,6 +587,78 @@ function CharadesGamePage() {
             </div>
         )
 
+        // Waiting for narrator to manually start their turn
+        if (state.phase === 'waiting_for_start') {
+            const isFirstTurn = currentTurn.globalTurnIndex === 0
+            const isNewNarrator = currentTurn.wordIndexInBlock === 0
+            
+            return (
+                <div className="min-h-screen bg-background flex flex-col">
+                    <ToastOverlay /><ConfirmDialog />
+                    <div className="flex-1 flex flex-col p-4">
+                        <div className="mb-4 bg-card/50 rounded-xl p-3 backdrop-blur-sm border border-border/30">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-semibold">{gt('gameProgress', lang)}</span>
+                                <span className="text-xs text-muted-foreground">{gt('turn', lang)} {currentTurnNum}/{totalTurns}</span>
+                            </div>
+                            <div className="h-2 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary transition-all duration-500" style={{ width: `${(currentTurnNum / totalTurns) * 100}%` }} /></div>
+                        </div>
+
+                        <div className="flex-1 flex flex-col items-center justify-center text-center gap-6">
+                            {isNarrator ? (
+                                <>
+                                    <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center">
+                                        <Play className="w-12 h-12 text-primary" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h2 className="text-2xl font-bold">{lang === 'tr' ? 'Sıra Sende!' : "It's Your Turn!"}</h2>
+                                        <p className="text-muted-foreground max-w-sm">
+                                            {lang === 'tr' 
+                                                ? 'Hazır olduğunda aşağıdaki butona bas. Görevin gözükecek ve süre başlayacak.' 
+                                                : 'Press the button below when ready. Your task will appear and the timer will start.'}
+                                        </p>
+                                    </div>
+                                    <Button 
+                                        size="lg" 
+                                        className="h-16 px-10 text-xl"
+                                        onClick={handleDeliverTaskAndStart}
+                                    >
+                                        <Play className="w-6 h-6 mr-3 fill-current" />
+                                        {isFirstTurn 
+                                            ? gt('deliverTaskStart', lang) 
+                                            : isNewNarrator 
+                                                ? gt('deliverMyTurn', lang)
+                                                : gt('deliverNextTask', lang)
+                                        }
+                                    </Button>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center">
+                                        <User className="w-12 h-12 text-muted-foreground" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h2 className="text-xl text-muted-foreground">{gt('narrator', lang)}</h2>
+                                        <div className="text-4xl font-bold text-primary">{narratorName}</div>
+                                    </div>
+                                    <p className="text-muted-foreground animate-pulse">{gt('waitingForNarratorStart', lang)}</p>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="mt-4">
+                            {isHost ? (
+                                <Button variant="ghost" size="sm" className="w-full text-destructive hover:text-destructive" onClick={() => setShowConfirmDialog('disband')}><LogOut className="w-4 h-4 mr-2" /> {gt('disbandLobby', lang)}</Button>
+                            ) : (
+                                <Button variant="ghost" size="sm" className="w-full" onClick={() => setShowConfirmDialog('leave')}><LogOut className="w-4 h-4 mr-2" /> {gt('leaveGame', lang)}</Button>
+                            )}
+                        </div>
+                        <Footer />
+                    </div>
+                </div>
+            )
+        }
+
         if (state.phase === 'time_up') {
             return (
                 <div className="min-h-screen bg-background flex flex-col">
@@ -492,7 +668,7 @@ function CharadesGamePage() {
                             <Clock className="w-20 h-20 mx-auto mb-4 text-yellow-500 animate-pulse" />
                             <h2 className="text-4xl font-black text-yellow-500 mb-6">{gt('timeUp', lang)}</h2>
                             {isNarrator ? (
-                                <Button size="lg" className="h-14 px-8 text-lg" onClick={handleContinueAfterTimeUp}>{gt('continueNext', lang)} <ArrowRight className="ml-2 w-5 h-5" /></Button>
+                                <Button size="lg" className="h-14 px-8 text-lg" onClick={handleContinueAfterTimeUp}>{gt('deliverNextTask', lang)} <ArrowRight className="ml-2 w-5 h-5" /></Button>
                             ) : (
                                 <p className="text-muted-foreground animate-pulse">{gt('waitingForNarrator', lang)}</p>
                             )}
@@ -533,7 +709,25 @@ function CharadesGamePage() {
     if (lobby.status === 'finished') {
         const state = lobby.current_game_state
         if (state?.phase === 'canceled') return <div className="flex justify-center items-center min-h-screen"><Loader2 className="animate-spin w-8 h-8" /></div>
-        const sortedPlayers = [...lobbyPlayers].sort((a, b) => b.score - a.score)
+        
+        // Show loading state while calculating scores
+        if (calculatingScores || !scoresReady) {
+            return (
+                <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+                    <ToastOverlay />
+                    <div className="text-center space-y-6">
+                        <Loader2 className="w-16 h-16 animate-spin mx-auto text-primary" />
+                        <div className="space-y-2">
+                            <h2 className="text-2xl font-bold text-primary">{lang === 'tr' ? 'Puanlar Hesaplanıyor...' : 'Calculating Scores...'}</h2>
+                            <p className="text-muted-foreground">{lang === 'tr' ? 'Lütfen bekleyin' : 'Please wait'}</p>
+                        </div>
+                    </div>
+                </div>
+            )
+        }
+        
+        // Use finalScores which are freshly fetched from database
+        const sortedPlayers = [...finalScores].sort((a, b) => b.score - a.score)
         return (
             <div className="min-h-screen bg-background flex flex-col p-4">
                 <ToastOverlay />
@@ -579,13 +773,32 @@ function SessizSinemaLanding({ user, router, showToast, lang }: { user: UserSess
     const [createLoading, setCreateLoading] = useState(false)
     const [tasksPerPlayer, setTasksPerPlayer] = useState("3")
     const [roundTime, setRoundTime] = useState("60")
+    const [availableCategories, setAvailableCategories] = useState<string[]>([])
+    const [selectedCategories, setSelectedCategories] = useState<string[]>([])
     const [matchHistory, setMatchHistory] = useState<MatchHistoryItem[]>([])
     const [historyLoading, setHistoryLoading] = useState(true)
     const [showHistoryModal, setShowHistoryModal] = useState(false)
+    const [categoriesLoading, setCategoriesLoading] = useState(true)
 
     useEffect(() => {
+        fetchCategories()
         fetchMatchHistory()
     }, [user.id])
+
+    const fetchCategories = async () => {
+        setCategoriesLoading(true)
+        const { data } = await supabase
+            .from('charades_categories')
+            .select('name')
+            .order('name', { ascending: true })
+        if (data && data.length > 0) {
+            const categoryNames = data.map(c => c.name)
+            setAvailableCategories(categoryNames)
+            // Set first category as default selected
+            setSelectedCategories([categoryNames[0]])
+        }
+        setCategoriesLoading(false)
+    }
 
     const fetchMatchHistory = async () => {
         setHistoryLoading(true)
@@ -642,7 +855,7 @@ function SessizSinemaLanding({ user, router, showToast, lang }: { user: UserSess
         setCreateLoading(true)
         const code = generateCode()
         try {
-            const { data: lobby, error: lobbyError } = await supabase.from('charades_lobbies').insert({ code, host_id: user.id, tasks_per_player: parseInt(tasksPerPlayer), round_time_seconds: roundTime === 'infinite' ? 9999 : parseInt(roundTime) }).select().single()
+            const { data: lobby, error: lobbyError } = await supabase.from('charades_lobbies').insert({ code, host_id: user.id, tasks_per_player: parseInt(tasksPerPlayer), round_time_seconds: roundTime === 'infinite' ? 9999 : parseInt(roundTime), selected_categories: selectedCategories.length > 0 ? selectedCategories : ['Genel'] }).select().single()
             if (lobbyError) { showToast(lang === 'tr' ? 'Lobi oluşturulamadı' : 'Could not create lobby', 'error'); setCreateLoading(false); return }
             const { error: playerError } = await supabase.from('charades_lobby_players').insert({ lobby_id: lobby.id, player_id: user.id, score: 0 })
             if (playerError) { showToast(lang === 'tr' ? 'Lobiye katılınamadı' : 'Could not join lobby', 'error'); setCreateLoading(false); return }
@@ -754,7 +967,54 @@ function SessizSinemaLanding({ user, router, showToast, lang }: { user: UserSess
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <Button className="w-full h-12 text-lg" onClick={handleCreateLobby} disabled={createLoading}>
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2"><Tag className="w-4 h-4" /> {lang === 'tr' ? 'Kategoriler' : 'Categories'}</Label>
+                                {categoriesLoading ? (
+                                    <div className="flex justify-center py-4">
+                                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                                    </div>
+                                ) : availableCategories.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground py-2">
+                                        {lang === 'tr' ? 'Kategori bulunamadı. Admin panelinden kategori ekleyin.' : 'No categories found. Add categories from admin panel.'}
+                                    </p>
+                                ) : (
+                                    <>
+                                        <div className="flex flex-wrap gap-2">
+                                            {availableCategories.map(cat => {
+                                                const isSelected = selectedCategories.includes(cat)
+                                                return (
+                                                    <button
+                                                        key={cat}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (isSelected) {
+                                                                setSelectedCategories(prev => prev.filter(c => c !== cat))
+                                                            } else {
+                                                                setSelectedCategories(prev => [...prev, cat])
+                                                            }
+                                                        }}
+                                                        className={cn(
+                                                            "px-3 py-1.5 rounded-full text-xs font-medium border transition-all flex items-center gap-1",
+                                                            isSelected 
+                                                                ? "bg-primary text-primary-foreground border-primary" 
+                                                                : "bg-muted/50 text-muted-foreground border-border hover:border-primary/50"
+                                                        )}
+                                                    >
+                                                        {isSelected && <Check className="w-3 h-3" />}
+                                                        {cat}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            {lang === 'tr' 
+                                                ? `${selectedCategories.length === 0 ? 'En az 1 kategori seç' : `${selectedCategories.length} kategori seçildi`}` 
+                                                : `${selectedCategories.length === 0 ? 'Select at least 1 category' : `${selectedCategories.length} categories selected`}`}
+                                        </p>
+                                    </>
+                                )}
+                            </div>
+                            <Button className="w-full h-12 text-lg" onClick={handleCreateLobby} disabled={createLoading || selectedCategories.length === 0}>
                                 {createLoading ? <Loader2 className="animate-spin" /> : <>{lang === 'tr' ? 'Oluştur & Oyna' : 'Create & Play'} <ArrowRight className="w-4 h-4 ml-2" /></>}
                             </Button>
                         </CardContent>

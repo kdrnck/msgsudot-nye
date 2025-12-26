@@ -70,10 +70,10 @@ export default function HiringPage() {
                     />
 
                     <RoleCard
-                        title="Kameraman"
+                        title="Videographer"
                         icon={Video}
                         description="Instagram story/post ya da tiktok paylaşımı formatında reklam içeriğini oluşturmak, çekmek ve video düzenlemesini yapmak üzere birini arıyorum."
-                        detail="Eğer daha önce öyle ya da böyle içerik düzenleme tecrübeniz varsa çekinmeyin!"
+                        detail="Eğer daha önce öyle ya da böyle içerik oluşturma/düzenleme tecrübeniz varsa çekinmeyin!"
                         btnText="Aksiyon!"
                         roleId="cameraman"
                         color="text-purple-400"
@@ -110,17 +110,6 @@ export default function HiringPage() {
                 </section>
 
                 {/* General Application */}
-                <div className="text-center pt-8 pb-12">
-                    <p className="text-gray-500 mb-4">Kendine göre bir şey bulamadın mı?</p>
-                    <div className="bg-white/5 rounded-2xl p-8 border border-white/10 max-w-lg mx-auto backdrop-blur-sm">
-                        <Smile className="w-10 h-10 text-yellow-400 mx-auto mb-4" />
-                        <p className="text-gray-300 mb-6">
-                            Anlattıklarım hoşuna gittiyse ve sadece merhaba demek istersen çekinme. Gelecekte farklı bir projede yollarımız kesişebilir.
-                        </p>
-                        <ApplicationButton role="general" btnText="Merhaba De 👋" variant="secondary" />
-                    </div>
-                </div>
-
             </div>
 
             {/* Footer is handled by layout if present, OR we can exclude it here. 
@@ -135,7 +124,6 @@ export default function HiringPage() {
           So I should add Footer here if I want it.
           I will add Footer here.
        */}
-            <Footer />
         </div>
     )
 }

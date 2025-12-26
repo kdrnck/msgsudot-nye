@@ -103,54 +103,114 @@ BEGIN
     LIMIT 1;
     
     IF kmk_result IS NOT NULL THEN
-        -- Match for Kiss slot
-        IF kmk_result.kiss_character_id IS NOT NULL THEN
+        -- Match for Kiss slot 1
+        IF kmk_result.kiss_char_id IS NOT NULL THEN
             SELECT player_id INTO match_player_id
             FROM public.kmk_results
             WHERE player_id != p_player_id
-            AND kiss_character_id = kmk_result.kiss_character_id
+            AND (kiss_char_id = kmk_result.kiss_char_id OR kiss_char_id_2 = kmk_result.kiss_char_id)
             ORDER BY RANDOM()
             LIMIT 1;
             
             IF match_player_id IS NOT NULL THEN
                 INSERT INTO public.player_matches (player_id, match_type, matched_player_id, shared_character_id)
-                VALUES (p_player_id, 'kmk_kiss', match_player_id, kmk_result.kiss_character_id)
+                VALUES (p_player_id, 'kmk_kiss', match_player_id, kmk_result.kiss_char_id)
                 ON CONFLICT (player_id, match_type) DO UPDATE 
                 SET matched_player_id = EXCLUDED.matched_player_id,
                     shared_character_id = EXCLUDED.shared_character_id;
             END IF;
         END IF;
         
-        -- Match for Marry slot
-        IF kmk_result.marry_character_id IS NOT NULL THEN
+        -- Match for Kiss slot 2 (if no match found for slot 1)
+        IF match_player_id IS NULL AND kmk_result.kiss_char_id_2 IS NOT NULL THEN
             SELECT player_id INTO match_player_id
             FROM public.kmk_results
             WHERE player_id != p_player_id
-            AND marry_character_id = kmk_result.marry_character_id
+            AND (kiss_char_id = kmk_result.kiss_char_id_2 OR kiss_char_id_2 = kmk_result.kiss_char_id_2)
             ORDER BY RANDOM()
             LIMIT 1;
             
             IF match_player_id IS NOT NULL THEN
                 INSERT INTO public.player_matches (player_id, match_type, matched_player_id, shared_character_id)
-                VALUES (p_player_id, 'kmk_marry', match_player_id, kmk_result.marry_character_id)
+                VALUES (p_player_id, 'kmk_kiss', match_player_id, kmk_result.kiss_char_id_2)
                 ON CONFLICT (player_id, match_type) DO UPDATE 
                 SET matched_player_id = EXCLUDED.matched_player_id,
                     shared_character_id = EXCLUDED.shared_character_id;
             END IF;
         END IF;
         
-        -- Match for Kill slot
-        IF kmk_result.kill_character_id IS NOT NULL THEN
+        -- Reset for next match type
+        match_player_id := NULL;
+        
+        -- Match for Marry slot 1
+        IF kmk_result.marry_char_id IS NOT NULL THEN
             SELECT player_id INTO match_player_id
             FROM public.kmk_results
             WHERE player_id != p_player_id
-            AND kill_character_id = kmk_result.kill_character_id
+            AND (marry_char_id = kmk_result.marry_char_id OR marry_char_id_2 = kmk_result.marry_char_id)
             ORDER BY RANDOM()
             LIMIT 1;
             
             IF match_player_id IS NOT NULL THEN
                 INSERT INTO public.player_matches (player_id, match_type, matched_player_id, shared_character_id)
-                VALUES (p_player_id, 'kmk_kill', match_player_id, kmk_result.kill_character_id)
+                VALUES (p_player_id, 'kmk_marry', match_player_id, kmk_result.marry_char_id)
+                ON CONFLICT (player_id, match_type) DO UPDATE 
+                SET matched_player_id = EXCLUDED.matched_player_id,
+                    shared_character_id = EXCLUDED.shared_character_id;
+            END IF;
+        END IF;
+        
+        -- Match for Marry slot 2 (if no match found for slot 1)
+        IF match_player_id IS NULL AND kmk_result.marry_char_id_2 IS NOT NULL THEN
+            SELECT player_id INTO match_player_id
+            FROM public.kmk_results
+            WHERE player_id != p_player_id
+            AND (marry_char_id = kmk_result.marry_char_id_2 OR marry_char_id_2 = kmk_result.marry_char_id_2)
+            ORDER BY RANDOM()
+            LIMIT 1;
+            
+            IF match_player_id IS NOT NULL THEN
+                INSERT INTO public.player_matches (player_id, match_type, matched_player_id, shared_character_id)
+                VALUES (p_player_id, 'kmk_marry', match_player_id, kmk_result.marry_char_id_2)
+                ON CONFLICT (player_id, match_type) DO UPDATE 
+                SET matched_player_id = EXCLUDED.matched_player_id,
+                    shared_character_id = EXCLUDED.shared_character_id;
+            END IF;
+        END IF;
+        
+        -- Reset for next match type
+        match_player_id := NULL;
+        
+        -- Match for Kill slot 1
+        IF kmk_result.kill_char_id IS NOT NULL THEN
+            SELECT player_id INTO match_player_id
+            FROM public.kmk_results
+            WHERE player_id != p_player_id
+            AND (kill_char_id = kmk_result.kill_char_id OR kill_char_id_2 = kmk_result.kill_char_id)
+            ORDER BY RANDOM()
+            LIMIT 1;
+            
+            IF match_player_id IS NOT NULL THEN
+                INSERT INTO public.player_matches (player_id, match_type, matched_player_id, shared_character_id)
+                VALUES (p_player_id, 'kmk_kill', match_player_id, kmk_result.kill_char_id)
+                ON CONFLICT (player_id, match_type) DO UPDATE 
+                SET matched_player_id = EXCLUDED.matched_player_id,
+                    shared_character_id = EXCLUDED.shared_character_id;
+            END IF;
+        END IF;
+        
+        -- Match for Kill slot 2 (if no match found for slot 1)
+        IF match_player_id IS NULL AND kmk_result.kill_char_id_2 IS NOT NULL THEN
+            SELECT player_id INTO match_player_id
+            FROM public.kmk_results
+            WHERE player_id != p_player_id
+            AND (kill_char_id = kmk_result.kill_char_id_2 OR kill_char_id_2 = kmk_result.kill_char_id_2)
+            ORDER BY RANDOM()
+            LIMIT 1;
+            
+            IF match_player_id IS NOT NULL THEN
+                INSERT INTO public.player_matches (player_id, match_type, matched_player_id, shared_character_id)
+                VALUES (p_player_id, 'kmk_kill', match_player_id, kmk_result.kill_char_id_2)
                 ON CONFLICT (player_id, match_type) DO UPDATE 
                 SET matched_player_id = EXCLUDED.matched_player_id,
                     shared_character_id = EXCLUDED.shared_character_id;

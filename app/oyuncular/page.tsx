@@ -35,15 +35,31 @@ export default function PlayersListPage() {
 
     const deletePlayer = async (id: string) => {
         if (!confirm("Are you sure? This will delete all their data!")) return
+        const adminSecret = sessionStorage.getItem('admin_secret')
+        if (!adminSecret) {
+            alert("Admin secret missing. Lütfen yeniden giriş yapın.")
+            router.push('/admin')
+            return
+        }
 
         setLoading(true)
-        const { error } = await supabase.from('players').delete().eq('id', id)
-        if (error) {
-            alert("Error deleting: " + error.message)
-        } else {
+        try {
+            const res = await fetch(`/api/admin-delete-player?id=${encodeURIComponent(id)}`, {
+                method: 'DELETE',
+                headers: {
+                    'x-admin-secret': adminSecret
+                }
+            })
+            if (!res.ok) {
+                const body = await res.json().catch(() => null)
+                throw new Error(body?.error || 'Unknown error')
+            }
             setPlayers(prev => prev.filter(p => p.id !== id))
+        } catch (error: any) {
+            alert("Error deleting: " + (error?.message || 'Unknown error'))
+        } finally {
+            setLoading(false)
         }
-        setLoading(false)
     }
 
     return (

@@ -7,7 +7,7 @@ import { Footer } from "@/components/layout/Footer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Users, Film, Trophy, Lock, Power } from "lucide-react"
+import { Users, Film, Lock, Power } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
 export default function AdminPage() {
@@ -15,28 +15,14 @@ export default function AdminPage() {
     const [password, setPassword] = useState("")
     const [isAuthenticated, setIsAuthenticated] = useState(false)
     const [loading, setLoading] = useState(false)
-    const [eventEnded, setEventEnded] = useState(false)
-    const [endingEvent, setEndingEvent] = useState(false)
 
     useEffect(() => {
         // Check if previously logged in via session storage
         const token = sessionStorage.getItem('admin_token')
         if (token === 'true') {
             setIsAuthenticated(true)
-            loadEventStatus()
         }
     }, [router])
-
-    const loadEventStatus = async () => {
-        const { data } = await supabase
-            .from('event_settings')
-            .select('event_ended')
-            .single()
-
-        if (data) {
-            setEventEnded(data.event_ended || false)
-        }
-    }
 
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault()
@@ -66,6 +52,7 @@ export default function AdminPage() {
             if (res.ok) {
                 setIsAuthenticated(true)
                 sessionStorage.setItem('admin_token', 'true')
+                sessionStorage.setItem('admin_secret', password)
             } else {
                 alert("Invalid Password")
             }
@@ -97,55 +84,13 @@ export default function AdminPage() {
         )
     }
 
-    const handleEndEvent = async () => {
-        if (endingEvent) return
-        setEndingEvent(true)
-
-        try {
-            if (eventEnded) {
-                // Restart event - clear matches and set event_ended to false
-                await supabase.from('player_matches').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-                const { data: settingsData } = await supabase.from('event_settings').select('id').single()
-                if (settingsData) {
-                    await supabase.from('event_settings').update({
-                        event_ended: false,
-                        ended_at: null
-                    }).eq('id', settingsData.id)
-                }
-
-                alert('Etkinlik yeniden başlatıldı! Eşleşmeler temizlendi.')
-                setEventEnded(false)
-            } else {
-                // End event - generate matches and set event_ended to true
-                const { data: settingsData } = await supabase.from('event_settings').select('id').single()
-
-                if (settingsData) {
-                    await supabase.from('event_settings').update({
-                        event_ended: true,
-                        ended_at: new Date().toISOString()
-                    }).eq('id', settingsData.id)
-                }
-
-                // Call the database function to generate matches
-                await supabase.rpc('generate_all_matches')
-
-                alert('Etkinlik bitirildi! Eşleşmeler oluşturuldu. Kullanıcılar artık eşleşmelerini görebilir.')
-                setEventEnded(true)
-            }
-        } catch (error: any) {
-            console.error('Event toggle error:', error)
-            alert('Hata: ' + error.message)
-        } finally {
-            setEndingEvent(false)
-        }
-    }
-
     const menu = [
         { title: "Players", icon: Users, href: "/oyuncular", color: "text-blue-500" },
         { title: "KMK Characters", icon: Users, href: "/admin/kmk", color: "text-pink-500" },
+        { title: "Sessiz Sinema Kategoriler", icon: Film, href: "/admin/categories", color: "text-orange-500" },
         { title: "Charades Tasks", icon: Film, href: "/admin/tasks", color: "text-purple-500" },
-        { title: "Achievements", icon: Trophy, href: "/admin/achievements", color: "text-yellow-500" },
-        { title: "Canlı İstatistikler", icon: Users, href: "/live", color: "text-red-500" },
+        { title: "Canlı Yayın Kontrolü", icon: Power, href: "/live-edit", color: "text-red-500" },
+        { title: "TV Görünümü", icon: Users, href: "/live", color: "text-green-500" },
     ]
 
     return (
@@ -161,29 +106,12 @@ export default function AdminPage() {
                         </CardContent>
                     </Card>
                 ))}
-
-                <Card
-                    className={`col-span-2 cursor-pointer transition-colors ${eventEnded ? "hover:bg-green-500/10 border-green-500/50" : "hover:bg-destructive/10 border-destructive/50"
-                        }`}
-                    onClick={handleEndEvent}
-                >
-                    <CardContent className="flex flex-row items-center justify-center p-6 gap-4">
-                        <Power className={`w-8 h-8 ${eventEnded ? "text-green-500" : "text-destructive"}`} />
-                        <div className="flex flex-col">
-                            <span className={`font-bold ${eventEnded ? "text-green-500" : "text-destructive"}`}>
-                                {endingEvent ? "İşleniyor..." : eventEnded ? "Etkinliği Yeniden Başlat" : "Oyuncuları Eşleştir & Etkinliği Bitir"}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                                {eventEnded ? "Eşleşmeleri sıfırla ve etkinliği aktif et" : "Eşleşmeleri oluştur ve kullanıcılara göster"}
-                            </span>
-                        </div>
-                    </CardContent>
-                </Card>
             </div>
 
             <div className="mt-8">
                 <Button variant="outline" className="w-full" onClick={() => {
                     sessionStorage.removeItem('admin_token')
+                    sessionStorage.removeItem('admin_secret')
                     setIsAuthenticated(false)
                     router.push('/')
                 }}>

@@ -3,10 +3,14 @@ import "./globals.css";
 import { ClientProviders } from "@/components/ClientProviders";
 
 export const metadata: Metadata = {
-  title: "MSGSU DOT - Yılbaşı Etkinliği 2025",
+  title: "MSGSU DOT - Yılbaşı Etkinliği 2026",
   description: "Mimar Sinan Güzel Sanatlar Üniversitesi Dijital Oyun Topluluğu Yılbaşı Etkinliği",
   icons: {
-    icon: "/dot-logo.png",
+    icon: [
+      { rel: "icon", url: "/dot-logo.png", sizes: "any" },
+      { rel: "shortcut icon", url: "/dot-logo.png" },
+      { rel: "apple-touch-icon", url: "/dot-logo.png" },
+    ],
   },
 };
 

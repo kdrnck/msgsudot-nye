@@ -14,15 +14,14 @@ interface ResultRow {
     id: string
     created_at: string
     player: { nickname: string } | null
-    // In Supabase we might need to join, or fetch separate? 
-    // RLS might block joining 'players' if not set up correctly.
-    // We'll fetch flat and maybe join or just nickname if we store it.
-    // Actually schema has player_id relations.
     player_id: string
 
     kiss_char: { name: string } | null
+    kiss_char_2: { name: string } | null
     marry_char: { name: string } | null
+    marry_char_2: { name: string } | null
     kill_char: { name: string } | null
+    kill_char_2: { name: string } | null
 }
 
 export default function StatsPage() {
@@ -42,9 +41,12 @@ export default function StatsPage() {
         id,
         created_at,
         player:players(nickname),
-        kiss_char:kmk_characters!kmk_results_kiss_char_id_fkey(name),
-        marry_char:kmk_characters!kmk_results_marry_char_id_fkey(name),
-        kill_char:kmk_characters!kmk_results_kill_char_id_fkey(name)
+        kiss_char:kmk_characters!kiss_char_id(name),
+        kiss_char_2:kmk_characters!kiss_char_id_2(name),
+        marry_char:kmk_characters!marry_char_id(name),
+        marry_char_2:kmk_characters!marry_char_id_2(name),
+        kill_char:kmk_characters!kill_char_id(name),
+        kill_char_2:kmk_characters!kill_char_id_2(name)
       `)
             .order('created_at', { ascending: false })
             .limit(50)
@@ -77,23 +79,29 @@ export default function StatsPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Player</TableHead>
-                                <TableHead className="text-pink-500">Kiss</TableHead>
-                                <TableHead className="text-purple-500">Marry</TableHead>
-                                <TableHead className="text-slate-500">Kill</TableHead>
+                                <TableHead className="text-pink-500">Kiss 1</TableHead>
+                                <TableHead className="text-pink-500">Kiss 2</TableHead>
+                                <TableHead className="text-purple-500">Marry 1</TableHead>
+                                <TableHead className="text-purple-500">Marry 2</TableHead>
+                                <TableHead className="text-slate-500">Kill 1</TableHead>
+                                <TableHead className="text-slate-500">Kill 2</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {results.map((row: any) => (
                                 <TableRow key={row.id}>
                                     <TableCell className="font-medium">{row.player?.nickname || 'Unknown'}</TableCell>
-                                    <TableCell>{row.kiss_char?.name}</TableCell>
-                                    <TableCell>{row.marry_char?.name}</TableCell>
-                                    <TableCell>{row.kill_char?.name}</TableCell>
+                                    <TableCell className="text-sm">{row.kiss_char?.name}</TableCell>
+                                    <TableCell className="text-sm">{row.kiss_char_2?.name}</TableCell>
+                                    <TableCell className="text-sm">{row.marry_char?.name}</TableCell>
+                                    <TableCell className="text-sm">{row.marry_char_2?.name}</TableCell>
+                                    <TableCell className="text-sm">{row.kill_char?.name}</TableCell>
+                                    <TableCell className="text-sm">{row.kill_char_2?.name}</TableCell>
                                 </TableRow>
                             ))}
                             {results.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                                         No games played yet.
                                     </TableCell>
                                 </TableRow>

@@ -20,7 +20,7 @@ export function Footer({ showHiring = true }: { showHiring?: boolean }) {
                     <img
                         src="/dot-logo.png"
                         alt="DOT Logo"
-                        className="w-12 h-12 object-contain brightness-110 contrast-125"
+                        className="w-12 h-12 object-contain"
                     />
                     <div className="flex items-center gap-3">
                         <span className="font-bold tracking-widest text-foreground text-sm">MSGSU - DOT</span>
@@ -68,7 +68,7 @@ export function Footer({ showHiring = true }: { showHiring?: boolean }) {
                         onClick={() => router.push('/hiring')}
                     >
                         <Sparkles className="w-4 h-4" />
-                        Sonraki Etkinliğin Yaratıcısı Sen Ol!
+                        İş ilanı gibi bi' şey için tıkla
                     </Button>
                 )}
 

@@ -18,14 +18,14 @@ export const translations = {
         login: 'Giriş',
         important: 'ÖNEMLİ!',
         pinLoginNote: 'Bu PIN ile giriş yapacaksınız.',
-        forgotPin: 'Unutursanız: @kdrnck',
+        forgotPin: "Unutursanız alandaki yetkiliye ulaş",
         connectionError: 'Bağlantı hatası. Tekrar deneyin.',
         nameTaken: 'Bu isim alınmış. Geri dönün.',
         registrationFailed: 'Kayıt başarısız',
         invalidPin: 'Geçersiz PIN.',
 
         // Home Page
-        welcomeToEvent: "2025'e Hoş Geldin!",
+        welcomeToEvent: "2026'ya Merhaba!",
         eventDescription: "MSGSU Dijital Oyun Topluluğu'nun etkinliğine katıldın.",
         logout: 'Çıkış',
         settings: 'Ayarlar',
@@ -93,7 +93,7 @@ export const translations = {
         playAgain: 'Tekrar Oyna',
         notEnoughCharacters: 'Bu kategorilerde yeterli karakter bulunamadı! En az 3 gerekli.',
         noCategories: 'Kategori bulunamadı. Admin karakter eklemeli.',
-        kmkGenerateError: 'Kart oluşturulurken hata oluştu. Lütfen tekrar deneyin.',
+        kmkGenerateError: 'Sonuç kaydedilirken hata oluştu. Lütfen tekrar deneyin.',
 
         // Footer
         madeBy: 'yapımcı',
@@ -133,14 +133,14 @@ export const translations = {
         login: 'Login',
         important: 'IMPORTANT!',
         pinLoginNote: 'You will login with this PIN.',
-        forgotPin: 'Forgot? Contact: @kdrnck',
+        forgotPin: 'Forgot? Contact on-site staff',
         connectionError: 'Connection error. Try again.',
         nameTaken: 'This name is taken. Go back.',
         registrationFailed: 'Registration failed',
         invalidPin: 'Invalid PIN.',
 
         // Home Page
-        welcomeToEvent: 'Welcome to 2025!',
+        welcomeToEvent: 'Welcome to 2026!',
         eventDescription: "You've joined MSGSU Digital Games Club's event.",
         logout: 'Logout',
         settings: 'Settings',
@@ -208,7 +208,7 @@ export const translations = {
         playAgain: 'Play Again',
         notEnoughCharacters: 'Not enough characters in these categories! Need at least 3.',
         noCategories: 'No categories found. Admin needs to add characters.',
-        kmkGenerateError: 'Error generating card. Please try again.',
+        kmkGenerateError: 'Error saving your result. Please try again.',
 
         // Footer
         madeBy: 'made by',

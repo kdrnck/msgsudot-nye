@@ -2,12 +2,13 @@
 // This file defines the authoritative game state structure
 
 export type GamePhase = 
-  | 'waiting'      // Lobby waiting for players
-  | 'playing'      // Active gameplay - narrator is acting
-  | 'time_up'      // Timer expired, waiting for narrator to continue
-  | 'reveal'       // Showing correct answer after guess (intermission)
-  | 'finished'     // Game completed normally
-  | 'canceled';    // Game was disbanded/canceled
+  | 'waiting'           // Lobby waiting for players
+  | 'waiting_for_start' // Waiting for narrator to press "Start" button (manual start)
+  | 'playing'           // Active gameplay - narrator is acting
+  | 'time_up'           // Timer expired, waiting for narrator to continue
+  | 'reveal'            // Showing correct answer after guess (intermission)
+  | 'finished'          // Game completed normally
+  | 'canceled';         // Game was disbanded/canceled
 
 export type LobbyStatus = 'waiting' | 'playing' | 'finished';
 
@@ -71,6 +72,7 @@ export interface Lobby {
   status: LobbyStatus;
   round_time_seconds: number;
   tasks_per_player: number;
+  selected_categories: string[];
   current_game_state: GameState | null;
   created_at?: string;
 }
@@ -92,6 +94,7 @@ export interface LobbyPlayer {
 export interface CharadesTask {
   id: string;
   content: string;
+  category?: string;
 }
 
 // Helper to create initial game state
@@ -105,7 +108,7 @@ export function createInitialGameState(
   const firstTask = taskQueue[0];
   
   return {
-    phase: 'playing',
+    phase: 'waiting_for_start', // Start with waiting phase - narrator must press button to start
     playerOrder,
     tasksPerPlayer,
     roundDurationSec,
@@ -119,7 +122,7 @@ export function createInitialGameState(
     },
     taskQueue,
     timer: {
-      startedAtMs: Date.now(),
+      startedAtMs: null, // Timer doesn't start until narrator presses button
       durationSec: roundDurationSec,
       pausedAtMs: null,
     },
@@ -229,6 +232,10 @@ export const gameTranslations = {
     newGame: "Yeni Oyun",
     players: "Oyuncular",
     startGame: "Oyunu Başlat",
+    deliverTaskStart: "Görevi ver ve başlat",
+    deliverNextTask: "Sonraki görevi ver",
+    deliverMyTurn: "Görevi ver ve sıramı başlat",
+    waitingForNarratorStart: "Anlatıcının başlatmasını bekliyor...",
   },
   en: {
     timeUp: "Time's Up!",
@@ -247,6 +254,10 @@ export const gameTranslations = {
     leaveLobby: "Leave Lobby",
     leaveGame: "Leave Game",
     disbandLobby: "Disband Lobby",
+    deliverTaskStart: "Deliver task and start",
+    deliverNextTask: "Deliver next task",
+    deliverMyTurn: "Deliver task and start my turn",
+    waitingForNarratorStart: "Waiting for narrator to start...",
     lobbyDisbanded: "This lobby was disbanded by the host.",
     lobbyDisbandedShort: "Lobby disbanded",
     confirmDisband: "Are you sure you want to disband? All players will be removed.",

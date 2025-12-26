@@ -50,6 +50,18 @@ export default function AdminKMKPage() {
         setLoading(false)
     }
 
+    const formatNameFromFile = (filename: string) => {
+        const base = filename.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim()
+        return base || filename
+    }
+
+    const handleFileChange = (selectedFile: File | null) => {
+        setFile(selectedFile)
+        if (selectedFile) {
+            setNewName(formatNameFromFile(selectedFile.name))
+        }
+    }
+
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!newName || !newCategory || !file) return
@@ -190,7 +202,7 @@ export default function AdminKMKPage() {
                             </div>
                             <div className="space-y-2">
                                 <Label>Image</Label>
-                                <Input type="file" accept="image/*" onChange={e => setFile(e.target.files?.[0] || null)} />
+                                <Input type="file" accept="image/*" onChange={e => handleFileChange(e.target.files?.[0] || null)} />
                                 {file && (
                                     <p className="text-xs text-muted-foreground">
                                         Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)

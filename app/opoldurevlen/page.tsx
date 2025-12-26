@@ -8,12 +8,10 @@ import { supabase } from "@/lib/supabase"
 import { Footer } from "@/components/layout/Footer"
 import { CharacterCard } from "@/components/kmk/CharacterCard"
 import { Button } from "@/components/ui/button"
-import { Loader2, RefreshCw, Heart, Skull, Gem, ArrowRight, Download, Eye, Home } from "lucide-react"
+import { Loader2, RefreshCw, Heart, Skull, Gem, ArrowRight, Home } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/components/LanguageContext"
-// import * as htmlToImage from 'html-to-image' // Will import dynamically to avoid SSR issues if any, or just import top level.
-// Dynamic import for client side libraries is safer for canvas.
-import { toPng } from 'html-to-image'
+import { createKmsGame, updateKmsGame, completeKmsGame } from "@/lib/live-state"
 
 interface Character {
     id: string
@@ -22,7 +20,8 @@ interface Character {
     image_path: string
 }
 
-type GameStage = 'category-select' | 'drawing' | 'playing' | 'result'
+type GameStage = 'category-select' | 'drawing' | 'playing'
+type SlotType = 'kiss1' | 'kiss2' | 'marry1' | 'marry2' | 'kill1' | 'kill2'
 
 export default function KMKGamePage() {
     const router = useRouter()
@@ -33,21 +32,25 @@ export default function KMKGamePage() {
     const [stage, setStage] = useState<GameStage>('category-select')
     const [categories, setCategories] = useState<string[]>([])
     const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-    const [characters, setCharacters] = useState<Character[]>([])
+    const [allCharacters, setAllCharacters] = useState<Character[]>([])
+    const [revealedCharacters, setRevealedCharacters] = useState<Character[]>([])
+    const [currentCharacterIndex, setCurrentCharacterIndex] = useState(0)
+    const [isRevealing, setIsRevealing] = useState(false)
 
     const [slots, setSlots] = useState<{
-        kiss: Character | null,
-        marry: Character | null,
-        kill: Character | null
-    }>({ kiss: null, marry: null, kill: null })
+        kiss1: Character | null,
+        kiss2: Character | null,
+        marry1: Character | null,
+        marry2: Character | null,
+        kill1: Character | null,
+        kill2: Character | null
+    }>({ kiss1: null, kiss2: null, marry1: null, marry2: null, kill1: null, kill2: null })
 
     const [selectedCharId, setSelectedCharId] = useState<string | null>(null)
+    const [kmsGameId, setKmsGameId] = useState<string | null>(null) // Track live game ID
 
     const [loading, setLoading] = useState(false)
     const [generating, setGenerating] = useState(false)
-    const [resultImage, setResultImage] = useState<string | null>(null)
-
-    const cardRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         const session = auth.getSession()
@@ -88,23 +91,52 @@ export default function KMKGamePage() {
             .select('*')
             .in('category', selectedCategories)
 
-        if (error || !data || data.length < 3) {
+        if (error || !data || data.length < 6) {
             // Handle not enough characters
             alert(t('notEnoughCharacters'))
             setLoading(false)
             return
         }
 
-        // Randomly pick 3
+        // Randomly pick 6
         const shuffled = [...data].sort(() => 0.5 - Math.random())
-        setCharacters(shuffled.slice(0, 3))
+        setAllCharacters(shuffled.slice(0, 6))
+        setRevealedCharacters([])
+        setCurrentCharacterIndex(0)
 
         // Reset slots
-        setSlots({ kiss: null, marry: null, kill: null })
+        setSlots({ kiss1: null, kiss2: null, marry1: null, marry2: null, kill1: null, kill2: null })
         setSelectedCharId(null)
 
-        setStage('playing') // Skip 'drawing' animation for MVP speed, or add small delay
+        // Create live game entry for broadcast
+        if (user) {
+            try {
+                const liveGame = await createKmsGame(user.id, user.nickname)
+                setKmsGameId(liveGame.id)
+                console.log('[KMS] Created live game:', liveGame.id)
+            } catch (err) {
+                console.error('[KMS] Failed to create live game:', err)
+                // Continue anyway - game still playable locally
+            }
+        }
+
+        setStage('playing')
         setLoading(false)
+        
+        // Start revealing first character after 1 second
+        setTimeout(() => revealNextCharacter(shuffled.slice(0, 6), []), 1000)
+    }
+
+    const revealNextCharacter = (chars: Character[], revealed: Character[]) => {
+        if (revealed.length >= 6) return
+        
+        setIsRevealing(true)
+        setTimeout(() => {
+            const nextChar = chars[revealed.length]
+            setRevealedCharacters([...revealed, nextChar])
+            setCurrentCharacterIndex(revealed.length)
+            setIsRevealing(false)
+        }, 1000)
     }
 
     const toggleCategory = (cat: string) => {
@@ -116,10 +148,15 @@ export default function KMKGamePage() {
     }
 
     const handleCharacterClick = (char: Character) => {
-        // If character is already placed, remove it from slot
+        // If character is already placed, select it to move
         const placedSlot = (Object.keys(slots) as (keyof typeof slots)[]).find(key => slots[key]?.id === char.id)
         if (placedSlot) {
-            setSlots(prev => ({ ...prev, [placedSlot]: null }))
+            // Select this character to move it
+            if (selectedCharId === char.id) {
+                setSelectedCharId(null) // deselect
+            } else {
+                setSelectedCharId(char.id)
+            }
             return
         }
 
@@ -131,83 +168,123 @@ export default function KMKGamePage() {
         }
     }
 
-    const handleSlotClick = (slotType: keyof typeof slots) => {
+    const handleSlotClick = async (slotType: SlotType) => {
         if (!selectedCharId) {
-            // If nothing selected, maybe remove what's in there?
+            // If nothing selected, select what's in the slot to move it
             if (slots[slotType]) {
-                setSlots(prev => ({ ...prev, [slotType]: null }))
+                setSelectedCharId(slots[slotType]!.id)
             }
             return
         }
 
         // Place selected character
-        const char = characters.find(c => c.id === selectedCharId)
-        if (char) {
-            // If this character is already somewhere else, remove it from there (handled by logic above but ensuring safety)
-            const oldSlot = (Object.keys(slots) as (keyof typeof slots)[]).find(key => slots[key]?.id === char.id)
+        const char = revealedCharacters.find(c => c.id === selectedCharId)
+        if (!char) return
 
-            setSlots(prev => {
-                const next = { ...prev }
-                if (oldSlot) next[oldSlot] = null
-                next[slotType] = char
-                return next
-            })
-            setSelectedCharId(null)
+        // Place character in slot
+        const newSlots = { ...slots, [slotType]: char }
+        setSlots(newSlots)
+        setSelectedCharId(null)
+
+        // Update live game with new slot placement
+        if (kmsGameId && user) {
+            try {
+                // Map slots to live format
+                const liveSlots = {
+                    slot1: newSlots.kiss1 ? { characterId: newSlots.kiss1.id, name: newSlots.kiss1.name, imageUrl: newSlots.kiss1.image_path, action: 'kiss' as const } : null,
+                    slot2: newSlots.kiss2 ? { characterId: newSlots.kiss2.id, name: newSlots.kiss2.name, imageUrl: newSlots.kiss2.image_path, action: 'kiss' as const } : null,
+                    slot3: newSlots.marry1 ? { characterId: newSlots.marry1.id, name: newSlots.marry1.name, imageUrl: newSlots.marry1.image_path, action: 'marry' as const } : null,
+                    slot4: newSlots.marry2 ? { characterId: newSlots.marry2.id, name: newSlots.marry2.name, imageUrl: newSlots.marry2.image_path, action: 'marry' as const } : null,
+                    slot5: newSlots.kill1 ? { characterId: newSlots.kill1.id, name: newSlots.kill1.name, imageUrl: newSlots.kill1.image_path, action: 'kill' as const } : null,
+                    slot6: newSlots.kill2 ? { characterId: newSlots.kill2.id, name: newSlots.kill2.name, imageUrl: newSlots.kill2.image_path, action: 'kill' as const } : null,
+                }
+                
+                // Also set current card to the character being placed
+                const currentCard = {
+                    characterId: char.id,
+                    name: char.name,
+                    imageUrl: char.image_path,
+                    category: char.category
+                }
+                
+                await updateKmsGame(kmsGameId, { slots: liveSlots, current_card: currentCard })
+                console.log('[KMS] Updated live game slots')
+            } catch (err) {
+                console.error('[KMS] Failed to update live game:', err)
+            }
+        }
+
+        // Reveal next character if not all revealed
+        if (revealedCharacters.length < 6) {
+            setTimeout(() => revealNextCharacter(allCharacters, revealedCharacters), 500)
         }
     }
 
-    const isComplete = slots.kiss && slots.marry && slots.kill
+    const isComplete = slots.kiss1 && slots.kiss2 && slots.marry1 && slots.marry2 && slots.kill1 && slots.kill2
 
-    const generateCard = async () => {
-        if (!cardRef.current || !user || !isComplete) return
+    const saveResult = async () => {
+        if (!user || !isComplete) {
+            console.warn('[KMK] saveResult blocked', {
+                hasUser: Boolean(user),
+                isComplete,
+            })
+            return
+        }
+        console.log('[KMK] saveResult start', {
+            user: { id: user.id, nickname: user.nickname },
+            selectedCategories,
+            slots: {
+                kiss1: slots.kiss1?.id,
+                kiss2: slots.kiss2?.id,
+                marry1: slots.marry1?.id,
+                marry2: slots.marry2?.id,
+                kill1: slots.kill1?.id,
+                kill2: slots.kill2?.id,
+            },
+        })
         setGenerating(true)
 
         try {
-            // 1. Generate Image
-            // Ensure fonts are loaded? usually ok.
-            const dataUrl = await toPng(cardRef.current, { cacheBust: true, pixelRatio: 2 }) // pixelRatio 2 for high quality on mobile
-            setResultImage(dataUrl)
-
-            // 2. Upload to Supabase Storage
-            const blob = await (await fetch(dataUrl)).blob()
-            const filename = `${user.nickname}_${Date.now()}.png`
-            const { error: uploadError } = await supabase.storage
-                .from('stories')
-                .upload(filename, blob)
-
-            if (uploadError) throw uploadError
-
-            // 3. Save to DB
-            const { error: dbError } = await supabase
+            console.log('[KMK] saveResult → inserting kmk_results row')
+            const { data, error: dbError } = await supabase
                 .from('kmk_results')
                 .insert({
                     player_id: user.id,
-                    kiss_character_id: slots.kiss!.id,
-                    marry_character_id: slots.marry!.id,
-                    kill_character_id: slots.kill!.id,
-                    story_image_path: filename,
+                    kiss_char_id: slots.kiss1!.id,
+                    kiss_char_id_2: slots.kiss2!.id,
+                    marry_char_id: slots.marry1!.id,
+                    marry_char_id_2: slots.marry2!.id,
+                    kill_char_id: slots.kill1!.id,
+                    kill_char_id_2: slots.kill2!.id,
                     categories_selected: selectedCategories
                 })
+                .select('id')
+                .single()
 
             if (dbError) throw dbError
+            console.log('[KMK] saveResult → insert successful', { id: data.id })
 
-            setStage('result')
+            // Mark live game as completed
+            if (kmsGameId) {
+                try {
+                    await completeKmsGame(kmsGameId)
+                    console.log('[KMS] Completed live game')
+                } catch (err) {
+                    console.error('[KMS] Failed to complete live game:', err)
+                }
+            }
+
+            router.push(`/opoldurevlen/${data.id}`)
 
         } catch (e) {
-            console.error(e)
+            console.error('[KMK] saveResult failed', e)
             alert(t('kmkGenerateError'))
         } finally {
             setGenerating(false)
+            console.log('[KMK] saveResult end')
         }
     }
 
-    const downloadImage = () => {
-        if (!resultImage) return
-        const link = document.createElement('a')
-        link.download = `msgsu-dot-kmk-${Date.now()}.png`
-        link.href = resultImage
-        link.click()
-    }
 
     return (
         <div className="min-h-screen bg-background flex flex-col items-center p-4">
@@ -271,70 +348,133 @@ export default function KMKGamePage() {
                 <div className="flex-1 w-full max-w-md flex flex-col gap-6">
                     {/* Available Characters */}
                     <div className="grid grid-cols-3 gap-3">
-                        {characters.map(char => {
+                        {revealedCharacters.map(char => {
                             const isPlaced = Object.values(slots).some(s => s?.id === char.id)
+                            if (isPlaced) return null
                             return (
                                 <CharacterCard
                                     key={char.id}
                                     character={char}
                                     selected={selectedCharId === char.id}
-                                    disabled={isPlaced}
+                                    disabled={false}
                                     onClick={() => handleCharacterClick(char)}
                                 />
                             )
                         })}
+                        {/* Show loading placeholder for unrevealed characters */}
+                        {revealedCharacters.length < 6 && (
+                            <div className="aspect-[3/4] rounded-xl border-2 border-dashed border-muted flex items-center justify-center bg-muted/20">
+                                {isRevealing ? (
+                                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                                ) : (
+                                    <div className="text-center text-xs text-muted-foreground px-2">
+                                        {language === 'tr' ? 'Karakteri yerleştir...' : 'Selecting character...'}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex items-center justify-center text-sm text-muted-foreground animate-pulse">
-                        {selectedCharId ? t('tapSlotToPlace') : t('tapCharacterFirst')}
+                        {selectedCharId ? (language === 'tr' ? 'Slota yerleştirmek için tıkla' : 'Tap slot to place') : (language === 'tr' ? 'Önce karaktere tıkla' : 'Tap character first')}
                     </div>
 
-                    {/* Slots */}
-                    <div className="grid grid-cols-3 gap-3 mt-auto mb-4">
-                        {/* Kiss Slot */}
-                        <div onClick={() => handleSlotClick('kiss')} className="flex flex-col items-center gap-2 cursor-pointer group">
+                    {/* Slots - 2 rows of 3 */}
+                    <div className="grid grid-cols-3 gap-3 mt-auto mb-2">
+                        {/* Kiss Slot 1 */}
+                        <div onClick={() => handleSlotClick('kiss1')} className="flex flex-col items-center gap-2 cursor-pointer group">
                             <div className={cn("w-full aspect-[3/4] rounded-xl border-2 border-dashed flex items-center justify-center relative overflow-hidden transition-colors",
-                                slots.kiss ? "border-pink-500" : "border-pink-300 hover:bg-pink-50"
+                                slots.kiss1 ? "border-pink-500" : "border-pink-300 hover:bg-pink-50"
                             )}>
-                                {slots.kiss ? (
-                                    <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${slots.kiss.image_path}`} className="w-full h-full object-cover" />
+                                {slots.kiss1 ? (
+                                    <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${slots.kiss1.image_path}`} className="w-full h-full object-cover" />
                                 ) : (
                                     <Heart className="text-pink-400 w-8 h-8 opacity-50" />
                                 )}
                                 <div className="absolute bottom-0 inset-x-0 bg-pink-500 text-white text-[10px] font-bold text-center py-1 uppercase">
-                                    {t('kiss')}
+                                    {t('kiss')} 1
                                 </div>
                             </div>
                         </div>
 
-                        {/* Marry Slot */}
-                        <div onClick={() => handleSlotClick('marry')} className="flex flex-col items-center gap-2 cursor-pointer group">
+                        {/* Marry Slot 1 */}
+                        <div onClick={() => handleSlotClick('marry1')} className="flex flex-col items-center gap-2 cursor-pointer group">
                             <div className={cn("w-full aspect-[3/4] rounded-xl border-2 border-dashed flex items-center justify-center relative overflow-hidden transition-colors",
-                                slots.marry ? "border-purple-500" : "border-purple-300 hover:bg-purple-50"
+                                slots.marry1 ? "border-purple-500" : "border-purple-300 hover:bg-purple-50"
                             )}>
-                                {slots.marry ? (
-                                    <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${slots.marry.image_path}`} className="w-full h-full object-cover" />
+                                {slots.marry1 ? (
+                                    <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${slots.marry1.image_path}`} className="w-full h-full object-cover" />
                                 ) : (
                                     <Gem className="text-purple-400 w-8 h-8 opacity-50" />
                                 )}
                                 <div className="absolute bottom-0 inset-x-0 bg-purple-500 text-white text-[10px] font-bold text-center py-1 uppercase">
-                                    {t('marry')}
+                                    {t('marry')} 1
                                 </div>
                             </div>
                         </div>
 
-                        {/* Kill Slot */}
-                        <div onClick={() => handleSlotClick('kill')} className="flex flex-col items-center gap-2 cursor-pointer group">
+                        {/* Kill Slot 1 */}
+                        <div onClick={() => handleSlotClick('kill1')} className="flex flex-col items-center gap-2 cursor-pointer group">
                             <div className={cn("w-full aspect-[3/4] rounded-xl border-2 border-dashed flex items-center justify-center relative overflow-hidden transition-colors",
-                                slots.kill ? "border-slate-800" : "border-slate-400 hover:bg-slate-100"
+                                slots.kill1 ? "border-slate-800" : "border-slate-400 hover:bg-slate-100"
                             )}>
-                                {slots.kill ? (
-                                    <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${slots.kill.image_path}`} className="w-full h-full object-cover" />
+                                {slots.kill1 ? (
+                                    <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${slots.kill1.image_path}`} className="w-full h-full object-cover" />
                                 ) : (
                                     <Skull className="text-slate-600 w-8 h-8 opacity-50" />
                                 )}
                                 <div className="absolute bottom-0 inset-x-0 bg-slate-800 text-white text-[10px] font-bold text-center py-1 uppercase">
-                                    {t('kill')}
+                                    {t('kill')} 1
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3 mb-4">
+                        {/* Kiss Slot 2 */}
+                        <div onClick={() => handleSlotClick('kiss2')} className="flex flex-col items-center gap-2 cursor-pointer group">
+                            <div className={cn("w-full aspect-[3/4] rounded-xl border-2 border-dashed flex items-center justify-center relative overflow-hidden transition-colors",
+                                slots.kiss2 ? "border-pink-500" : "border-pink-300 hover:bg-pink-50"
+                            )}>
+                                {slots.kiss2 ? (
+                                    <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${slots.kiss2.image_path}`} className="w-full h-full object-cover" />
+                                ) : (
+                                    <Heart className="text-pink-400 w-8 h-8 opacity-50" />
+                                )}
+                                <div className="absolute bottom-0 inset-x-0 bg-pink-500 text-white text-[10px] font-bold text-center py-1 uppercase">
+                                    {t('kiss')} 2
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Marry Slot 2 */}
+                        <div onClick={() => handleSlotClick('marry2')} className="flex flex-col items-center gap-2 cursor-pointer group">
+                            <div className={cn("w-full aspect-[3/4] rounded-xl border-2 border-dashed flex items-center justify-center relative overflow-hidden transition-colors",
+                                slots.marry2 ? "border-purple-500" : "border-purple-300 hover:bg-purple-50"
+                            )}>
+                                {slots.marry2 ? (
+                                    <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${slots.marry2.image_path}`} className="w-full h-full object-cover" />
+                                ) : (
+                                    <Gem className="text-purple-400 w-8 h-8 opacity-50" />
+                                )}
+                                <div className="absolute bottom-0 inset-x-0 bg-purple-500 text-white text-[10px] font-bold text-center py-1 uppercase">
+                                    {t('marry')} 2
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Kill Slot 2 */}
+                        <div onClick={() => handleSlotClick('kill2')} className="flex flex-col items-center gap-2 cursor-pointer group">
+                            <div className={cn("w-full aspect-[3/4] rounded-xl border-2 border-dashed flex items-center justify-center relative overflow-hidden transition-colors",
+                                slots.kill2 ? "border-slate-800" : "border-slate-400 hover:bg-slate-100"
+                            )}>
+                                {slots.kill2 ? (
+                                    <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${slots.kill2.image_path}`} className="w-full h-full object-cover" />
+                                ) : (
+                                    <Skull className="text-slate-600 w-8 h-8 opacity-50" />
+                                )}
+                                <div className="absolute bottom-0 inset-x-0 bg-slate-800 text-white text-[10px] font-bold text-center py-1 uppercase">
+                                    {t('kill')} 2
                                 </div>
                             </div>
                         </div>
@@ -344,122 +484,13 @@ export default function KMKGamePage() {
                         size="lg"
                         className="w-full"
                         disabled={!isComplete || generating}
-                        onClick={generateCard}
+                        onClick={saveResult}
                     >
                         {generating ? <Loader2 className="animate-spin" /> : t('completeGame')}
                     </Button>
                 </div>
             )}
 
-            {/* Result Stage */}
-            {!loading && stage === 'result' && resultImage && (
-                <div className="flex-1 w-full max-w-sm flex flex-col items-center gap-6 animate-in slide-in-from-bottom">
-                    <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-purple-600">
-                        {t('itIsDone')}
-                    </h2>
-
-                    <img src={resultImage} alt="Result Card" className="w-2/3 shadow-2xl rounded-xl" />
-
-                    <div className="flex gap-4 w-full">
-                        <Button className="flex-1" variant="outline" onClick={() => window.open(resultImage, '_blank')} >
-                            <Eye className="w-4 h-4 mr-2" /> {t('view')}
-                        </Button>
-                        <Button className="flex-1" onClick={downloadImage}>
-                            <Download className="w-4 h-4 mr-2" /> {t('download')}
-                        </Button>
-                    </div>
-
-                    <div className="flex gap-4 w-full">
-                        <Button variant="ghost" className="flex-1" onClick={() => setStage('category-select')}>
-                            <RefreshCw className="w-4 h-4 mr-2" /> {t('playAgain')}
-                        </Button>
-                    </div>
-                </div>
-            )}
-
-            {/* Hidden Card for Generation */}
-            {/* Must be visible in DOM but hidden visually? html-to-image needs it rendered. 
-          Use fixed position off-screen. */}
-            {isComplete && (
-                <div
-                    ref={cardRef}
-                    className="fixed top-0 left-0 -z-50 pointer-events-none"
-                    style={{ width: '1080px', height: '1920px', background: 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)' }}
-                >
-                    {/* Story Card Design 1080x1920 */}
-                    <div className="w-full h-full relative flex flex-col p-12 items-center bg-white text-black font-sans">
-                        {/* Background Design */}
-                        <div className="absolute inset-0 opacity-10 bg-[url('/brand/pattern.png')]"></div> {/* Optional */}
-                        <div className="absolute top-0 w-full h-4 bg-purple-600"></div>
-                        <div className="absolute bottom-0 w-full h-4 bg-purple-600"></div>
-
-                        {/* Header */}
-                        <div className="mt-20 text-center z-10">
-                            <h1 className="text-6xl font-bold text-purple-700 tracking-tight uppercase">MSGSU DOT</h1>
-                            <p className="text-4xl mt-4 font-light text-gray-500">2025 New Year Event</p>
-                        </div>
-
-                        {/* Grid */}
-                        <div className="flex-1 w-full flex flex-col justify-center gap-16 px-16 z-10">
-                            {/* Kiss */}
-                            <div className="flex items-center gap-12">
-                                <div className="w-64 h-64 rounded-full border-8 border-pink-500 overflow-hidden flex-shrink-0 relative shadow-xl">
-                                    <img
-                                        src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${slots.kiss?.image_path}`}
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-pink-500 text-5xl font-black uppercase mb-2">{t('kiss')}</span>
-                                    <span className="text-6xl font-serif text-gray-900 leading-none">{slots.kiss?.name}</span>
-                                </div>
-                            </div>
-
-                            {/* Marry */}
-                            <div className="flex items-center gap-12 flex-row-reverse text-right">
-                                <div className="w-64 h-64 rounded-full border-8 border-purple-600 overflow-hidden flex-shrink-0 relative shadow-xl">
-                                    <img
-                                        src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${slots.marry?.image_path}`}
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-purple-600 text-5xl font-black uppercase mb-2">{t('marry')}</span>
-                                    <span className="text-6xl font-serif text-gray-900 leading-none">{slots.marry?.name}</span>
-                                </div>
-                            </div>
-
-                            {/* Kill */}
-                            <div className="flex items-center gap-12">
-                                <div className="w-64 h-64 rounded-full border-8 border-slate-800 overflow-hidden flex-shrink-0 relative shadow-xl">
-                                    <img
-                                        src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${slots.kill?.image_path}`}
-                                        className="w-full h-full object-cover"
-                                    />
-                                    <div className="absolute inset-0 bg-red-500 mix-blend-multiply opacity-30"></div>
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-slate-800 text-5xl font-black uppercase mb-2">{t('kill')}</span>
-                                    <span className="text-6xl font-serif text-gray-900 leading-none">{slots.kill?.name}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Footer */}
-                        <div className="mb-24 text-center z-10">
-                            <p className="text-3xl font-bold text-gray-400">@{user?.nickname}</p>
-                            <p className="text-2xl text-gray-300 mt-2">{new Date().toLocaleDateString(language === 'tr' ? 'tr-TR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-
-                            <div className="mt-12 pt-8 border-t-2 border-gray-100 w-full flex justify-center gap-4 text-2xl text-purple-400">
-                                <span>MSGSU - DOT</span>
-                                <span>|</span>
-                                <span>by kdrnck</span>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-            )}
 
             <Footer />
         </div>

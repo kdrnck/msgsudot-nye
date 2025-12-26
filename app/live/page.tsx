@@ -1,120 +1,365 @@
 
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
-import { Users, Film, Heart, Crown, Activity } from "lucide-react"
+import { Users, Trophy, Megaphone, Gamepad2, MonitorOff, Heart, Skull, Crown, User } from "lucide-react"
+import { cn } from "@/lib/utils"
+import {
+    useLiveState,
+    useKmsGame,
+    useLeaderboard,
+    useDebounce,
+    getCharacterImageUrl,
+    type KmsSlots,
+    type CurrentCard
+} from "@/lib/live-state"
 
-export default function LiveStatsPage() {
-    const [loading, setLoading] = useState(true)
-    const [stats, setStats] = useState({
-        players: 0,
-        gamesPlayed: 0,
-        topPlayer: "...",
-        mostKissed: "...",
-        activeLobbies: 0,
-        totalScores: 0
-    })
+// Slot action icons and colors
+const SLOT_CONFIG = {
+    kiss: { icon: Heart, color: "text-pink-500", bg: "bg-pink-500/20", border: "border-pink-500/50", label: "KISS" },
+    marry: { icon: Crown, color: "text-yellow-500", bg: "bg-yellow-500/20", border: "border-yellow-500/50", label: "MARRY" },
+    kill: { icon: Skull, color: "text-red-500", bg: "bg-red-500/20", border: "border-red-500/50", label: "KILL" }
+}
 
-    // Poll for stats every 10 seconds for simplicity in MVP instead of complex real-time aggregation
-    // Realtime is great, but aggregating "counts" in RT requires triggers/functions. 
-    // Polling is robust for a display screen.
+// Skeleton loader component
+function Skeleton({ className }: { className?: string }) {
+    return <div className={cn("animate-pulse bg-white/10 rounded", className)} />
+}
 
-    useEffect(() => {
-        fetchStats()
-        const interval = setInterval(fetchStats, 10000)
-        return () => clearInterval(interval)
-    }, [])
-
-    const fetchStats = async () => {
-        // 1. Players Count
-        const { count: playerCount } = await supabase.from('players').select('*', { count: 'exact', head: true })
-
-        // 2. Active Lobbies
-        const { count: lobbyCount } = await supabase.from('charades_lobbies').select('*', { count: 'exact', head: true }).eq('status', 'playing')
-
-        // 3. Most Kissed (Complex query, simulate for MVP or fetch all results and calc?)
-        // Fetching ALL results is heavy. Let's fetch KMK Results limited.
-        // For MVP, randomly picking a "Most Kissed" or just basic calc on last 100?
-        // Let's rely on standard selects.
-
-        // Total Scores check
-        // We can just query `charades_lobby_players` sum? Hard in Client.
-
-        // To make this "Look Alive" without heavy backend, we can display some totals.
-
-        setStats(prev => ({
-            ...prev,
-            players: playerCount || 0,
-            activeLobbies: lobbyCount || 0
-        }))
-
-        setLoading(false)
-    }
+// KMS Game Display Component
+function KmsGameDisplay({ game }: { game: { current_card: CurrentCard | null, slots: KmsSlots, owner_nickname: string } }) {
+    const slots = game.slots
+    const currentCard = game.current_card
 
     return (
-        <div className="min-h-screen bg-black text-white flex flex-col p-8 overflow-hidden font-sans">
-            <div className="fixed inset-0 opacity-20 pointer-events-none bg-[url('/brand/pattern.png')] animate-pulse-slow"></div>
-
-            {/* Header */}
-            <div className="flex items-center justify-between mb-12 z-10">
-                <div className="flex items-center gap-6">
-                    <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center">
-                        {/* Logo Placeholder */}
-                        <img src="/brand/dot-logo.png" className="w-20 h-20 object-contain" />
+        <div className="h-full flex flex-col gap-2">
+            {/* Header: Player Info & Current Card combined */}
+            <div className="bg-white/5 rounded-xl border border-white/10 p-3 flex items-center justify-between shrink-0">
+                {/* Player Info */}
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30">
+                        <User className="w-5 h-5 text-primary" />
                     </div>
                     <div>
-                        <h1 className="text-6xl font-black tracking-tighter uppercase">MSGSU DOT</h1>
-                        <p className="text-2xl text-purple-400 font-bold tracking-widest">NYE EVENT LIVE</p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-widest">Oynayan</p>
+                        <p className="text-lg font-bold text-white leading-none">{game.owner_nickname}</p>
                     </div>
                 </div>
-                <div className="text-right">
-                    <div className="text-4xl font-mono font-bold text-green-400 flex items-center gap-3 justify-end">
-                        <span className="w-4 h-4 bg-green-500 rounded-full animate-ping"></span>
-                        LIVE
+
+                {/* Divider */}
+                <div className="w-px h-8 bg-white/10 mx-4" />
+
+                {/* Current Card */}
+                <div className="flex-1 flex items-center justify-end gap-3">
+                    <div className="text-right">
+                        <p className="text-[10px] text-gray-400 uppercase tracking-widest">Şu an bakıyor</p>
+                        {currentCard ? (
+                            <div className="flex flex-col items-end leading-none">
+                                <p className="text-sm font-bold text-white">{currentCard.name}</p>
+                                {currentCard.category && <p className="text-[10px] text-gray-500">{currentCard.category}</p>}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500 italic">Kart seçiliyor...</p>
+                        )}
                     </div>
+                    {currentCard ? (
+                        <img 
+                            src={getCharacterImageUrl(currentCard.imageUrl)} 
+                            alt={currentCard.name}
+                            className="w-10 h-10 rounded-lg object-cover border border-white/20"
+                        />
+                    ) : (
+                        <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 border-dashed flex items-center justify-center">
+                            <span className="text-xs text-gray-600">?</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Grid Stats */}
-            <div className="grid grid-cols-3 gap-8 flex-1 z-10">
-
-                {/* Card 1: Players */}
-                <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 flex flex-col items-center justify-center border border-white/20 shadow-2xl">
-                    <Users className="w-16 h-16 text-blue-400 mb-4" />
-                    <span className="text-8xl font-black">{stats.players}</span>
-                    <span className="text-2xl text-gray-400 uppercase tracking-widest mt-2">Players Joined</span>
-                </div>
-
-                {/* Card 2: Active Charades */}
-                <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 flex flex-col items-center justify-center border border-white/20 shadow-2xl">
-                    <Activity className="w-16 h-16 text-yellow-400 mb-4" />
-                    <span className="text-8xl font-black">{stats.activeLobbies}</span>
-                    <span className="text-2xl text-gray-400 uppercase tracking-widest mt-2">Active Games</span>
-                </div>
-
-                {/* Card 3: Vibes */}
-                <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 flex flex-col items-center justify-center border border-white/20 shadow-2xl">
-                    <Heart className="w-16 h-16 text-pink-500 mb-4 animate-bounce" />
-                    <span className="text-6xl font-black text-center">LOVE IS IN THE AIR</span>
-                </div>
-
-                {/* Bottom Row - Leaderboard Snippet? */}
-                <div className="col-span-3 bg-gradient-to-r from-purple-900/50 to-pink-900/50 rounded-3xl p-8 border border-white/10 flex items-center justify-between">
-                    <div className="flex items-center gap-6">
-                        <Crown className="w-16 h-16 text-yellow-400" />
-                        <div className="flex flex-col">
-                            <span className="text-4xl font-bold">Top Charades Player</span>
-                            <span className="text-yellow-400 text-xl uppercase tracking-widest">Coming Soon...</span>
+            {/* Slots Grid - Fills remaining space */}
+            <div className="flex-1 min-h-0 bg-white/5 rounded-xl border border-white/10 p-2">
+                <div className="h-full grid grid-cols-3 gap-2">
+                    {/* Column 1: KISS */}
+                    <div className="flex flex-col gap-2 h-full min-h-0">
+                        <div className={cn("text-center py-1 rounded shrink-0", SLOT_CONFIG.kiss.bg)}>
+                            <span className={cn("font-bold text-xs block leading-none", SLOT_CONFIG.kiss.color)}>💋 KISS</span>
+                        </div>
+                        <div className="flex-1 flex flex-col gap-2 min-h-0">
+                            {[slots.slot1, slots.slot2].map((slot, idx) => (
+                                <SlotCard key={`kiss-${idx}`} slot={slot} action="kiss" />
+                            ))}
                         </div>
                     </div>
 
-                    <div className="text-right opacity-50">
-                        <p>Scan QR to Join</p>
-                        {/* QR Placeholder */}
+                    {/* Column 2: MARRY */}
+                    <div className="flex flex-col gap-2 h-full min-h-0">
+                        <div className={cn("text-center py-1 rounded shrink-0", SLOT_CONFIG.marry.bg)}>
+                            <span className={cn("font-bold text-xs block leading-none", SLOT_CONFIG.marry.color)}>💍 MARRY</span>
+                        </div>
+                        <div className="flex-1 flex flex-col gap-2 min-h-0">
+                            {[slots.slot3, slots.slot4].map((slot, idx) => (
+                                <SlotCard key={`marry-${idx}`} slot={slot} action="marry" />
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Column 3: KILL */}
+                    <div className="flex flex-col gap-2 h-full min-h-0">
+                        <div className={cn("text-center py-1 rounded shrink-0", SLOT_CONFIG.kill.bg)}>
+                            <span className={cn("font-bold text-xs block leading-none", SLOT_CONFIG.kill.color)}>💀 KILL</span>
+                        </div>
+                        <div className="flex-1 flex flex-col gap-2 min-h-0">
+                            {[slots.slot5, slots.slot6].map((slot, idx) => (
+                                <SlotCard key={`kill-${idx}`} slot={slot} action="kill" />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// Individual slot card
+function SlotCard({ slot, action }: { slot: KmsSlots[keyof KmsSlots], action: 'kiss' | 'marry' | 'kill' }) {
+    const config = SLOT_CONFIG[action]
+    
+    // Calculate color for empty state
+    const emptyBorder = action === 'kiss' ? 'border-pink-500/20' : action === 'marry' ? 'border-yellow-500/20' : 'border-red-500/20'
+    const emptyIconColor = action === 'kiss' ? 'text-pink-500/20' : action === 'marry' ? 'text-yellow-500/20' : 'text-red-500/20'
+
+    if (!slot) {
+        return (
+            <div className={cn(
+                "flex-1 min-h-0 rounded-lg border-2 border-dashed flex flex-col items-center justify-center bg-white/5 transition-colors",
+                emptyBorder
+            )}>
+                <div className={cn("text-2xl font-bold opacity-50", emptyIconColor)}>?</div>
+            </div>
+        )
+    }
+
+    return (
+        <div className={cn(
+            "flex-1 min-h-0 rounded-lg border-2 overflow-hidden relative group",
+            config.border, config.bg
+        )}>
+            {/* Image fills the container */}
+            <img 
+                src={getCharacterImageUrl(slot.imageUrl)} 
+                alt={slot.name}
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            />
+            
+            {/* Gradient overlay for text readability */}
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-6 pb-1 px-1">
+                <p className="text-[10px] font-bold text-white truncate text-center leading-tight drop-shadow-md">{slot.name}</p>
+            </div>
+        </div>
+    )
+}
+
+// Empty state for CANLI OYUN
+function EmptyGameState() {
+    return (
+        <div className="h-full flex flex-col items-center justify-center text-center p-8">
+            <MonitorOff className="w-24 h-24 text-gray-600 mb-6" />
+            <h3 className="text-3xl font-bold text-gray-400 mb-3">Canlı Oyun Yok</h3>
+            <p className="text-gray-500 text-lg max-w-md">
+                Şu anda yayında bir oyun yok. "Oyunu başlat" butonuna bas ve görevliye haber ver.
+            </p>
+        </div>
+    )
+}
+
+// Leaderboard Component
+function SilentLeaderboard({ entries, loading }: { entries: { nickname: string, score: number }[], loading: boolean }) {
+    if (loading) {
+        return (
+            <div className="space-y-3">
+                {[...Array(5)].map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                ))}
+            </div>
+        )
+    }
+
+    if (entries.length === 0) {
+        return (
+            <div className="text-center py-8 text-gray-500">
+                <Trophy className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p>Henüz skor yok</p>
+            </div>
+        )
+    }
+
+    return (
+        <div className="space-y-2">
+            {entries.map((entry, index) => (
+                <div 
+                    key={entry.nickname} 
+                    className={cn(
+                        "flex items-center gap-3 p-3 rounded-xl transition-all",
+                        index === 0 ? "bg-yellow-500/20 border border-yellow-500/30" :
+                        index === 1 ? "bg-gray-400/20 border border-gray-400/30" :
+                        index === 2 ? "bg-amber-700/20 border border-amber-700/30" :
+                        "bg-white/5 border border-white/10"
+                    )}
+                >
+                    <div className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm",
+                        index === 0 ? "bg-yellow-500 text-black" :
+                        index === 1 ? "bg-gray-400 text-black" :
+                        index === 2 ? "bg-amber-700 text-white" :
+                        "bg-white/20 text-white"
+                    )}>
+                        {index + 1}
+                    </div>
+                    <span className="flex-1 font-semibold text-lg truncate">{entry.nickname}</span>
+                    <span className="text-2xl font-bold">{entry.score}</span>
+                </div>
+            ))}
+        </div>
+    )
+}
+
+export default function LiveTVPage() {
+    const [stats, setStats] = useState({ players: 0, activeLobbies: 0 })
+
+    // Real-time hooks
+    const { liveState, loading: liveStateLoading } = useLiveState()
+    const { game: broadcastGame, loading: gameLoading } = useKmsGame(liveState?.broadcast_game_id || null)
+    const { entries: leaderboardEntries, loading: leaderboardLoading } = useLeaderboard(8)
+
+    // Debounce game updates to prevent jitter (60-120ms)
+    const debouncedGame = useDebounce(broadcastGame, 80)
+
+    // Fetch basic stats with polling (less critical data)
+    useEffect(() => {
+        const fetchStats = async () => {
+            const { count: playerCount } = await supabase.from('players').select('*', { count: 'exact', head: true })
+            const { count: lobbyCount } = await supabase.from('charades_lobbies').select('*', { count: 'exact', head: true }).eq('status', 'playing')
+            setStats({ players: playerCount || 0, activeLobbies: lobbyCount || 0 })
+        }
+        fetchStats()
+        const interval = setInterval(fetchStats, 15000)
+        return () => clearInterval(interval)
+    }, [])
+
+    const isLoading = liveStateLoading
+
+    return (
+        <div className="h-screen bg-black text-white overflow-hidden font-sans relative">
+            {/* TV-optimized layout - everything fits in viewport */}
+            <div className="h-full flex flex-col p-4">
+                
+                {/* Header - Compact */}
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
+                            <img src="/dot-logo.png" className="w-10 h-10 object-contain" alt="Logo" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-black tracking-tight uppercase">MSGSU DOT</h1>
+                            <p className="text-sm text-purple-400 font-bold tracking-widest">2026 yılına merhaba!</p>
+                        </div>
+                    </div>
+                    
+                    {/* Live indicator & Stats */}
+                    <div className="flex items-center gap-6">
+                        {/* Smaller player count card */}
+                        <div className="flex items-center gap-2 px-3 py-1 bg-white/10 rounded-lg border border-white/20">
+                            <Users className="w-4 h-4 text-blue-400" />
+                            <span className="text-lg font-bold">{stats.players}</span>
+                            <span className="text-xs text-gray-400 uppercase">Oyuncu</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-lg font-mono font-bold text-green-400">
+                            <span className="w-3 h-3 bg-green-500 rounded-full animate-ping" />
+                            LIVE
+                        </div>
                     </div>
                 </div>
 
+                {/* Announcement Bar */}
+                {liveState?.announcement && (
+                    <div className="mb-3 p-3 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg border border-yellow-500/30 flex items-center gap-3">
+                        <Megaphone className="w-6 h-6 text-yellow-500 flex-shrink-0" />
+                        <p className="text-base font-semibold text-yellow-100">{liveState.announcement}</p>
+                    </div>
+                )}
+
+                {/* Main Content Grid */}
+                <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">
+                    
+                    {/* CANLI OYUN Section - Takes 8 columns */}
+                    <div className="col-span-8 bg-white/5 rounded-2xl border border-white/10 p-4 flex flex-col min-h-0">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Gamepad2 className="w-5 h-5 text-primary" />
+                            <h2 className="text-lg font-bold uppercase tracking-widest">Canlı Oyun</h2>
+                            {liveState?.broadcast_game_id && (
+                                <div className="ml-auto flex items-center gap-2 px-2 py-1 bg-red-500/20 rounded-full border border-red-500/30">
+                                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                                    <span className="text-xs font-semibold text-red-400">YAYINDA</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex-1 min-h-0 overflow-auto">
+                            {isLoading || gameLoading ? (
+                                <div className="h-full flex flex-col gap-3">
+                                    <Skeleton className="h-24 w-full" />
+                                    <div className="flex-1 grid grid-cols-3 gap-3">
+                                        {[...Array(6)].map((_, i) => (
+                                            <Skeleton key={i} className="aspect-[3/4]" />
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : debouncedGame ? (
+                                <KmsGameDisplay game={debouncedGame} />
+                            ) : (
+                                <EmptyGameState />
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Right Sidebar - Silent Leaderboard - 4 columns */}
+                    {liveState?.show_leaderboard !== false && (
+                        <div className="col-span-4 bg-white/5 rounded-2xl border border-white/10 p-4 flex flex-col min-h-0">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Trophy className="w-5 h-5 text-yellow-500" />
+                                <h2 className="text-base font-bold uppercase tracking-widest">Skor Tablosu</h2>
+                            </div>
+
+                            <div className="flex-1 overflow-auto min-h-0">
+                                <SilentLeaderboard 
+                                    entries={leaderboardEntries.slice(0, 5).map(e => ({ nickname: e.nickname, score: e.score }))} 
+                                    loading={leaderboardLoading} 
+                                />
+                            </div>
+
+                            <p className="text-center text-[10px] text-gray-600 mt-2">Sessiz Sinema Skorları</p>
+                        </div>
+                    )}
+
+                    {/* If leaderboard hidden, CANLI OYUN takes full width */}
+                    {liveState?.show_leaderboard === false && (
+                        <div className="col-span-4" /> 
+                    )}
+                </div>
+            </div>
+
+            {/* Fixed QR code in bottom right corner */}
+            <div className="fixed bottom-4 right-4 bg-white p-3 rounded-xl shadow-2xl border-4 border-purple-500">
+                <div className="text-center mb-2">
+                    <p className="text-black font-bold text-sm">Sen de oyna!</p>
+                </div>
+                <img 
+                    src="/girisqr.jpeg" 
+                    alt="QR Code" 
+                    className="w-28 h-28 rounded-lg"
+                />
             </div>
         </div>
     )

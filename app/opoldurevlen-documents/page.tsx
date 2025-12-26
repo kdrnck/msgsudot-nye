@@ -7,19 +7,29 @@ import { auth, UserSession } from "@/lib/auth"
 import { supabase } from "@/lib/supabase"
 import { Footer } from "@/components/layout/Footer"
 import { Button } from "@/components/ui/button"
-import { Loader2, ArrowLeft, Download, Trash2, Home } from "lucide-react"
+import { Loader2, Trash2, Home, ExternalLink, Heart, Gem, Skull } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 
-interface StoryCard {
+interface Character {
     id: string
-    story_image_path: string
+    name: string
+    category: string
+    image_path: string
+}
+
+interface KMKResult {
+    id: string
     created_at: string
+    kiss_character: Character
+    marry_character: Character
+    kill_character: Character
+    categories_selected: string[]
 }
 
 export default function DocumentsPage() {
     const router = useRouter()
     const [loading, setLoading] = useState(true)
-    const [cards, setCards] = useState<StoryCard[]>([])
+    const [results, setResults] = useState<KMKResult[]>([])
 
     useEffect(() => {
         const session = auth.getSession()
@@ -33,36 +43,28 @@ export default function DocumentsPage() {
     const fetchCards = async (userId: string) => {
         const { data, error } = await supabase
             .from('kmk_results')
-            .select('id, story_image_path, created_at')
+            .select(`
+                id,
+                created_at,
+                categories_selected,
+                kiss_character:kmk_characters!kiss_char_id(id, name, category, image_path),
+                marry_character:kmk_characters!marry_char_id(id, name, category, image_path),
+                kill_character:kmk_characters!kill_char_id(id, name, category, image_path)
+            `)
             .eq('player_id', userId)
             .order('created_at', { ascending: false })
 
         if (data) {
-            setCards(data)
+            setResults(data as any)
         }
         setLoading(false)
     }
 
-    const handleDelete = async (id: string, path: string) => {
-        if (!confirm("Delete this card?")) return
-
-        // Delete from DB (Cascade should handle storage? No, usually separate)
-        // Actually Supabase cascade deletes DB rows. Storage needs manual delete or special trigger.
-        // For simplicity, we delete DB row and try to delete storage.
+    const handleDelete = async (id: string) => {
+        if (!confirm("Bu sonucu silmek istediğinize emin misiniz?")) return
 
         await supabase.from('kmk_results').delete().eq('id', id)
-        await supabase.storage.from('stories').remove([path])
-
-        setCards(prev => prev.filter(c => c.id !== id))
-    }
-
-    const downloadCard = (path: string) => {
-        const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/stories/${path}`
-        const link = document.createElement('a')
-        link.href = url
-        link.download = path
-        link.target = '_blank'
-        link.click()
+        setResults(prev => prev.filter(c => c.id !== id))
     }
 
     return (
@@ -71,7 +73,7 @@ export default function DocumentsPage() {
                 <Button variant="ghost" size="icon" onClick={() => router.push("/home")}>
                     <Home className="w-6 h-6" />
                 </Button>
-                <h1 className="text-xl font-bold">My Cards</h1>
+                <h1 className="text-xl font-bold">Öp Öldür Evlen Sonuçlarım</h1>
                 <div className="w-9" />
             </div>
 
@@ -80,30 +82,91 @@ export default function DocumentsPage() {
                     <Loader2 className="animate-spin" />
                 </div>
             ) : (
-                <div className="flex-1 grid grid-cols-2 gap-4 content-start">
-                    {cards.length === 0 && (
-                        <div className="col-span-2 text-center text-muted-foreground py-10">
-                            No cards yet. Go play!
+                <div className="flex-1 space-y-4 content-start">
+                    {results.length === 0 && (
+                        <div className="text-center text-muted-foreground py-10">
+                            Henüz oyun sonucun yok. Hadi oyna!
                         </div>
                     )}
-                    {cards.map(card => (
-                        <Card key={card.id} className="overflow-hidden border-0 shadow-lg group relative">
-                            <img
-                                src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/stories/${card.story_image_path}`}
-                                className="w-full aspect-[9/16] object-cover"
-                                loading="lazy"
-                            />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3">
-                                <Button size="sm" variant="secondary" onClick={() => window.open(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/stories/${card.story_image_path}`, '_blank')}>
-                                    View
+                    {results.map(result => (
+                        <Card key={result.id} className="overflow-hidden border shadow-md hover:shadow-xl transition-shadow">
+                            <CardContent className="p-4">
+                                <div className="flex items-center justify-between mb-4">
+                                    <p className="text-xs text-muted-foreground">
+                                        {new Date(result.created_at).toLocaleDateString('tr-TR', {
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })}
+                                    </p>
+                                    <Button size="sm" variant="ghost" onClick={() => handleDelete(result.id)}>
+                                        <Trash2 className="w-4 h-4 text-destructive" />
+                                    </Button>
+                                </div>
+
+                                {/* Character Grid */}
+                                <div className="grid grid-cols-3 gap-3 mb-4">
+                                    {/* Kiss */}
+                                    <div className="text-center">
+                                        <div className="w-full aspect-square rounded-full border-2 border-pink-500 overflow-hidden mb-2">
+                                            <img
+                                                src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${result.kiss_character.image_path}`}
+                                                alt={result.kiss_character.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <Heart className="w-4 h-4 mx-auto text-pink-500 fill-pink-500 mb-1" />
+                                        <p className="text-xs font-semibold truncate">{result.kiss_character.name}</p>
+                                    </div>
+
+                                    {/* Marry */}
+                                    <div className="text-center">
+                                        <div className="w-full aspect-square rounded-full border-2 border-purple-600 overflow-hidden mb-2">
+                                            <img
+                                                src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${result.marry_character.image_path}`}
+                                                alt={result.marry_character.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <Gem className="w-4 h-4 mx-auto text-purple-600 fill-purple-600 mb-1" />
+                                        <p className="text-xs font-semibold truncate">{result.marry_character.name}</p>
+                                    </div>
+
+                                    {/* Kill */}
+                                    <div className="text-center">
+                                        <div className="w-full aspect-square rounded-full border-2 border-slate-800 overflow-hidden mb-2">
+                                            <img
+                                                src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/characters/${result.kill_character.image_path}`}
+                                                alt={result.kill_character.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <Skull className="w-4 h-4 mx-auto text-slate-800 fill-slate-800 mb-1" />
+                                        <p className="text-xs font-semibold truncate">{result.kill_character.name}</p>
+                                    </div>
+                                </div>
+
+                                {/* Categories */}
+                                <div className="flex flex-wrap gap-1 mb-3">
+                                    {result.categories_selected.map((cat, idx) => (
+                                        <span key={idx} className="text-[10px] px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full">
+                                            {cat}
+                                        </span>
+                                    ))}
+                                </div>
+
+                                {/* View Button */}
+                                <Button
+                                    size="sm"
+                                    className="w-full"
+                                    onClick={() => router.push(`/opoldurevlen/${result.id}`)}
+                                >
+                                    <ExternalLink className="w-4 h-4 mr-2" />
+                                    Sonucu Görüntüle
                                 </Button>
-                                <Button size="sm" onClick={() => downloadCard(card.story_image_path)}>
-                                    <Download className="w-4 h-4" />
-                                </Button>
-                                <Button size="sm" variant="destructive" onClick={() => handleDelete(card.id, card.story_image_path)}>
-                                    <Trash2 className="w-4 h-4" />
-                                </Button>
-                            </div>
+                            </CardContent>
                         </Card>
                     ))}
                 </div>
