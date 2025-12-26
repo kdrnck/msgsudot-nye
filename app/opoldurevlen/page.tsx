@@ -109,9 +109,11 @@ export default function KMKGamePage() {
         setSelectedCharId(null)
 
         // Create live game entry for broadcast
+        let gameId: string | null = null
         if (user) {
             try {
                 const liveGame = await createKmsGame(user.id, user.nickname)
+                gameId = liveGame.id
                 setKmsGameId(liveGame.id)
                 console.log('[KMS] Created live game:', liveGame.id)
             } catch (err) {
@@ -123,16 +125,37 @@ export default function KMKGamePage() {
         setStage('playing')
         setLoading(false)
         
-        // Start revealing first character after 1 second
-        setTimeout(() => revealNextCharacter(shuffled.slice(0, 6), []), 1000)
+        // Start revealing first character after 1 second (pass gameId directly to avoid closure issues)
+        setTimeout(() => revealNextCharacter(shuffled.slice(0, 6), [], gameId), 1000)
     }
 
-    const revealNextCharacter = (chars: Character[], revealed: Character[]) => {
+    const revealNextCharacter = async (chars: Character[], revealed: Character[], gameId?: string | null) => {
         if (revealed.length >= 6) return
         
+        // Use passed gameId or fall back to state
+        const activeGameId = gameId ?? kmsGameId
+        
         setIsRevealing(true)
+        const nextChar = chars[revealed.length]
+        
+        // Update live game IMMEDIATELY with the next character as current_card
+        if (activeGameId) {
+            try {
+                const currentCard = {
+                    characterId: nextChar.id,
+                    name: nextChar.name,
+                    imageUrl: nextChar.image_path,
+                    category: nextChar.category
+                }
+                await updateKmsGame(activeGameId, { current_card: currentCard })
+                console.log('[KMS] Updated current_card to next character:', nextChar.name)
+            } catch (err) {
+                console.error('[KMS] Failed to update current_card:', err)
+            }
+        }
+        
+        // Then reveal it locally after animation delay
         setTimeout(() => {
-            const nextChar = chars[revealed.length]
             setRevealedCharacters([...revealed, nextChar])
             setCurrentCharacterIndex(revealed.length)
             setIsRevealing(false)
@@ -199,15 +222,7 @@ export default function KMKGamePage() {
                     slot6: newSlots.kill2 ? { characterId: newSlots.kill2.id, name: newSlots.kill2.name, imageUrl: newSlots.kill2.image_path, action: 'kill' as const } : null,
                 }
                 
-                // Also set current card to the character being placed
-                const currentCard = {
-                    characterId: char.id,
-                    name: char.name,
-                    imageUrl: char.image_path,
-                    category: char.category
-                }
-                
-                await updateKmsGame(kmsGameId, { slots: liveSlots, current_card: currentCard })
+                await updateKmsGame(kmsGameId, { slots: liveSlots })
                 console.log('[KMS] Updated live game slots')
             } catch (err) {
                 console.error('[KMS] Failed to update live game:', err)
@@ -216,7 +231,7 @@ export default function KMKGamePage() {
 
         // Reveal next character if not all revealed
         if (revealedCharacters.length < 6) {
-            setTimeout(() => revealNextCharacter(allCharacters, revealedCharacters), 500)
+            setTimeout(() => revealNextCharacter(allCharacters, revealedCharacters, kmsGameId), 500)
         }
     }
 

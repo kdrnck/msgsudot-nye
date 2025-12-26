@@ -32,6 +32,7 @@ import {
     setBroadcastGame,
     updateAnnouncement,
     toggleLeaderboard,
+    toggleQrCode,
     syncLeaderboard,
     deleteKmsGame,
     type KmsGame,
@@ -111,6 +112,14 @@ export default function LiveEditPage() {
             await toggleLeaderboard(show)
         } catch (err) {
             console.error('Failed to toggle leaderboard:', err)
+        }
+    }
+
+    const handleToggleQrCode = async (show: boolean) => {
+        try {
+            await toggleQrCode(show)
+        } catch (err) {
+            console.error('Failed to toggle QR code:', err)
         }
     }
 
@@ -349,6 +358,36 @@ export default function LiveEditPage() {
                         </CardContent>
                     </Card>
 
+                    {/* QR Code Control Card */}
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Monitor className="w-5 h-5 text-purple-500" />
+                                    <CardTitle className="text-lg">QR Kod</CardTitle>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Label htmlFor="show-qr" className="text-sm text-muted-foreground">
+                                        Göster
+                                    </Label>
+                                    <Switch
+                                        id="show-qr"
+                                        checked={liveState?.show_qr ?? true}
+                                        onCheckedChange={handleToggleQrCode}
+                                    />
+                                </div>
+                            </div>
+                            <CardDescription>
+                                TV ekranında QR kodu göster/gizle
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-muted-foreground">
+                                {liveState?.show_qr !== false ? "QR kod TV'de görünüyor" : "QR kod gizli"}
+                            </p>
+                        </CardContent>
+                    </Card>
+
                     {/* Leaderboard Control Card */}
                     <Card>
                         <CardHeader>
@@ -369,7 +408,7 @@ export default function LiveEditPage() {
                                 </div>
                             </div>
                             <CardDescription>
-                                Sessiz Sinema skorları
+                                Sessiz Sinema skorları (kapatınca KMS karakteri büyük görünür)
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">

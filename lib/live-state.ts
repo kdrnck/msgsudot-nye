@@ -13,6 +13,7 @@ export interface LiveState {
     broadcast_game_id: string | null
     announcement: string
     show_leaderboard: boolean
+    show_qr: boolean
     updated_at: string
     updated_by: string | null
 }
@@ -341,6 +342,13 @@ export async function updateAnnouncement(announcement: string) {
  */
 export async function toggleLeaderboard(show: boolean) {
     return updateLiveState({ show_leaderboard: show })
+}
+
+/**
+ * Toggle QR code visibility
+ */
+export async function toggleQrCode(show: boolean) {
+    return updateLiveState({ show_qr: show })
 }
 
 /**

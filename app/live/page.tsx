@@ -34,7 +34,7 @@ function KmsGameDisplay({ game }: { game: { current_card: CurrentCard | null, sl
 
     return (
         <div className="h-full flex flex-col gap-2">
-            {/* Header: Player Info & Current Card combined */}
+            {/* Header: Player Info & Next Character Card */}
             <div className="bg-white/5 rounded-xl border border-white/10 p-3 flex items-center justify-between shrink-0">
                 {/* Player Info */}
                 <div className="flex items-center gap-3">
@@ -48,30 +48,30 @@ function KmsGameDisplay({ game }: { game: { current_card: CurrentCard | null, sl
                 </div>
 
                 {/* Divider */}
-                <div className="w-px h-8 bg-white/10 mx-4" />
+                <div className="w-px h-16 bg-white/10 mx-4" />
 
-                {/* Current Card */}
-                <div className="flex-1 flex items-center justify-end gap-3">
+                {/* Next Character Card - Larger display */}
+                <div className="flex-1 flex items-center justify-end gap-4">
                     <div className="text-right">
-                        <p className="text-[10px] text-gray-400 uppercase tracking-widest">Şu an bakıyor</p>
+                        <p className="text-xs text-purple-400 uppercase tracking-widest font-semibold">Sıradaki Karakter</p>
                         {currentCard ? (
-                            <div className="flex flex-col items-end leading-none">
-                                <p className="text-sm font-bold text-white">{currentCard.name}</p>
-                                {currentCard.category && <p className="text-[10px] text-gray-500">{currentCard.category}</p>}
+                            <div className="flex flex-col items-end leading-tight mt-1">
+                                <p className="text-xl font-bold text-white">{currentCard.name}</p>
+                                {currentCard.category && <p className="text-sm text-gray-400">{currentCard.category}</p>}
                             </div>
                         ) : (
-                            <p className="text-sm text-gray-500 italic">Kart seçiliyor...</p>
+                            <p className="text-base text-gray-500 italic mt-1">Kart seçiliyor...</p>
                         )}
                     </div>
                     {currentCard ? (
                         <img 
                             src={getCharacterImageUrl(currentCard.imageUrl)} 
                             alt={currentCard.name}
-                            className="w-10 h-10 rounded-lg object-cover border border-white/20"
+                            className="w-20 h-20 rounded-xl object-cover border-2 border-purple-500/50 shadow-lg shadow-purple-500/20"
                         />
                     ) : (
-                        <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 border-dashed flex items-center justify-center">
-                            <span className="text-xs text-gray-600">?</span>
+                        <div className="w-20 h-20 rounded-xl bg-white/5 border-2 border-white/10 border-dashed flex items-center justify-center">
+                            <span className="text-2xl text-gray-600">?</span>
                         </div>
                     )}
                 </div>
@@ -155,6 +155,57 @@ function SlotCard({ slot, action }: { slot: KmsSlots[keyof KmsSlots], action: 'k
             {/* Gradient overlay for text readability */}
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-6 pb-1 px-1">
                 <p className="text-[10px] font-bold text-white truncate text-center leading-tight drop-shadow-md">{slot.name}</p>
+            </div>
+        </div>
+    )
+}
+
+// Large Next Character Display for right sidebar (when leaderboard is hidden)
+function LargeNextCharacterDisplay({ game }: { game: { current_card: CurrentCard | null, owner_nickname: string } }) {
+    const currentCard = game.current_card
+    
+    return (
+        <div className="h-full flex flex-col">
+            {/* Header */}
+            <div className="flex items-center gap-2 mb-3">
+                <Gamepad2 className="w-5 h-5 text-purple-500" />
+                <h2 className="text-base font-bold uppercase tracking-widest">Sıradaki Karakter</h2>
+            </div>
+            
+            {/* Large Character Display */}
+            <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+                {currentCard ? (
+                    <div className="w-full flex flex-col items-center gap-4">
+                        {/* Large Image */}
+                        <div className="relative w-full aspect-[3/4] max-h-[70%] rounded-2xl overflow-hidden border-4 border-purple-500/50 shadow-2xl shadow-purple-500/30">
+                            <img 
+                                src={getCharacterImageUrl(currentCard.imageUrl)} 
+                                alt={currentCard.name}
+                                className="w-full h-full object-cover"
+                            />
+                            {/* Gradient overlay */}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-12 pb-4 px-4">
+                                <p className="text-2xl font-bold text-white text-center drop-shadow-lg">{currentCard.name}</p>
+                                {currentCard.category && (
+                                    <p className="text-sm text-purple-300 text-center mt-1">{currentCard.category}</p>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* Player info */}
+                        <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full border border-white/20">
+                            <User className="w-4 h-4 text-primary" />
+                            <span className="text-sm font-semibold">{game.owner_nickname}</span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-8">
+                        <div className="w-32 h-32 rounded-2xl bg-white/5 border-2 border-white/10 border-dashed flex items-center justify-center mb-4">
+                            <span className="text-4xl text-gray-600">?</span>
+                        </div>
+                        <p className="text-gray-500 text-lg">Karakter bekleniyor...</p>
+                    </div>
+                )}
             </div>
         </div>
     )
@@ -324,43 +375,57 @@ export default function LiveTVPage() {
                         </div>
                     </div>
 
-                    {/* Right Sidebar - Silent Leaderboard - 4 columns */}
-                    {liveState?.show_leaderboard !== false && (
-                        <div className="col-span-4 bg-white/5 rounded-2xl border border-white/10 p-4 flex flex-col min-h-0">
-                            <div className="flex items-center gap-2 mb-3">
-                                <Trophy className="w-5 h-5 text-yellow-500" />
-                                <h2 className="text-base font-bold uppercase tracking-widest">Skor Tablosu</h2>
-                            </div>
+                    {/* Right Sidebar - 4 columns */}
+                    <div className="col-span-4 flex flex-col gap-3 min-h-0">
+                        {/* Main content area */}
+                        <div className="flex-1 bg-white/5 rounded-2xl border border-white/10 p-4 flex flex-col min-h-0">
+                            {liveState?.show_leaderboard !== false ? (
+                                /* Show Leaderboard */
+                                <>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Trophy className="w-5 h-5 text-yellow-500" />
+                                        <h2 className="text-base font-bold uppercase tracking-widest">Skor Tablosu</h2>
+                                    </div>
 
-                            <div className="flex-1 overflow-auto min-h-0">
-                                <SilentLeaderboard 
-                                    entries={leaderboardEntries.slice(0, 5).map(e => ({ nickname: e.nickname, score: e.score }))} 
-                                    loading={leaderboardLoading} 
-                                />
-                            </div>
+                                    <div className="flex-1 overflow-auto min-h-0">
+                                        <SilentLeaderboard 
+                                            entries={leaderboardEntries.slice(0, 5).map(e => ({ nickname: e.nickname, score: e.score }))} 
+                                            loading={leaderboardLoading} 
+                                        />
+                                    </div>
 
-                            <p className="text-center text-[10px] text-gray-600 mt-2">Sessiz Sinema Skorları</p>
+                                    <p className="text-center text-[10px] text-gray-600 mt-2">Sessiz Sinema Skorları</p>
+                                </>
+                            ) : debouncedGame ? (
+                                /* Show Large Next Character when leaderboard is OFF and KMS game is active */
+                                <LargeNextCharacterDisplay game={debouncedGame} />
+                            ) : (
+                                /* Empty state when no game and leaderboard is OFF */
+                                <div className="h-full flex flex-col items-center justify-center text-center">
+                                    <MonitorOff className="w-16 h-16 text-gray-600 mb-4" />
+                                    <p className="text-gray-500">Oyun başlatıldığında<br/>karakter burada görünecek</p>
+                                </div>
+                            )}
                         </div>
-                    )}
-
-                    {/* If leaderboard hidden, CANLI OYUN takes full width */}
-                    {liveState?.show_leaderboard === false && (
-                        <div className="col-span-4" /> 
-                    )}
+                        
+                        {/* QR Code - below the main content */}
+                        {liveState?.show_qr !== false && (
+                            <div className="bg-white p-3 rounded-xl flex items-center gap-4 shrink-0">
+                                <img 
+                                    src="/girisqr.jpeg" 
+                                    alt="QR Code" 
+                                    className="w-28 h-28 rounded-lg"
+                                />
+                                <div className="flex-1">
+                                    <p className="text-black font-bold text-xl">Sen de oyna!</p>
+                                    <p className="text-gray-600 text-sm">QR kodu tarat ve katıl</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* Fixed QR code in bottom right corner */}
-            <div className="fixed bottom-4 right-4 bg-white p-3 rounded-xl shadow-2xl border-4 border-purple-500">
-                <div className="text-center mb-2">
-                    <p className="text-black font-bold text-sm">Sen de oyna!</p>
-                </div>
-                <img 
-                    src="/girisqr.jpeg" 
-                    alt="QR Code" 
-                    className="w-28 h-28 rounded-lg"
-                />
-            </div>
         </div>
     )
 }
